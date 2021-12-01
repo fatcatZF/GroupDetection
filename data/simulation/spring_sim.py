@@ -149,7 +149,7 @@ class SpringSim(object):
         v_norm = np.sqrt((vel_next ** 2).sum(axis=0)).reshape(1, -1)
         vel_next =  vel_next*self.vel_norm/v_norm
         loc[0,:,:], vel[0,:,:] = self._clamp(loc_next, vel_next)
-        loc_all[0,:,:], vel[0,:,:] = self._clamp(loc_next, vel_next)
+        loc_all[0,:,:], vel_all[0,:,:] = self._clamp(loc_next, vel_next)
         
         if self.dynamic:
             all_edges_sampled = np.zeros((T_save, n, n))
@@ -181,7 +181,7 @@ class SpringSim(object):
             for i in range(1,T):
                 loc_next += self._delta_T*vel_next
                 loc_next, vel_next = self._clamp(loc_next, vel_next)
-                loc_all[i,:,:], vel[i,:,:] = loc_next, vel_next
+                loc_all[i,:,:], vel_all[i,:,:] = loc_next, vel_next
                 
                 if i%sample_freq == 0:
                     loc[counter, :, :], vel[counter, :, :] = loc_next, vel_next
