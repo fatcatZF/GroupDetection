@@ -24,14 +24,14 @@ args.dynamic = bool(args.dynamic and args.dynamic_rule)
 print(args)
 
 dynamic_rule = None
-suffix = "_static"
+suffix = "_static_"
 
 if args.dynamic_rule == 1:
     dynamic_rule = dynamic_rule1
-    suffix = "_dynamic1"
+    suffix = "_dynamic1_"
 elif args.dynamic_rule == 2:
     dynamic_rule = dynamic_rule2
-    suffix = "_dynamic2"
+    suffix = "_dynamic2_"
 
 
 sim = SpringSim(n_balls=args.n_balls, dynamic=args.dynamic, dynamic_rule=dynamic_rule)
