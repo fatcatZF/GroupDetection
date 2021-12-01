@@ -1,17 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov 30 21:13:34 2021
-
-@author: Z Fang
-"""
 
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 
 
-def dynamic_rule0(edges, age, num_atoms, spring_types, spring_prob,
+def dynamic_rule1(edges, age, num_atoms, spring_types, spring_prob,
                  reset_time=5):
     """
     reset the adjacency matrix every reset_time timesteps
@@ -34,7 +27,7 @@ def dynamic_rule0(edges, age, num_atoms, spring_types, spring_prob,
     return edges, age
 
 
-def dynamic_rule1(edges, age, num_atoms, spring_types, spring_prob,
+def dynamic_rule2(edges, age, num_atoms, spring_types, spring_prob,
                   factor=0.001):
     """
     flip the edges depend on the age of the edges:
@@ -61,6 +54,10 @@ def dynamic_rule1(edges, age, num_atoms, spring_types, spring_prob,
 
 
 class SpringSim(object):
+    """
+    copied from https://github.com/ethanfetaya/NRI/blob/master/data/synthetic_sim.py
+    adapted for Dynamic Graphs
+    """
     def __init__(self, n_balls=5, box_size=5., loc_std=0.5, vel_norm=0.5,
                  interaction_strength=0.1, noise_var=0., dynamic=False, dynamic_rule=None):
         self.n_balls = n_balls
@@ -142,13 +139,18 @@ class SpringSim(object):
                                  p=spring_prob)
         edges = np.tril(edges)+np.tril(edges, -1).T
         np.fill_diagonal(edges, 0)
+        sampled_indices = [0]
         loc = np.zeros((T_save,2,n))
         vel = np.zeros((T_save,2,n))
+        loc_all = np.zeros((T,2, n))
+        vel_all = np.zeros((T,2,n))
         loc_next = np.random.randn(2,n)*self.loc_std
         vel_next = np.random.randn(2,n)
         v_norm = np.sqrt((vel_next ** 2).sum(axis=0)).reshape(1, -1)
         vel_next =  vel_next*self.vel_norm/v_norm
         loc[0,:,:], vel[0,:,:] = self._clamp(loc_next, vel_next)
+        loc_all[0,:,:], vel[0,:,:] = self._clamp(loc_next, vel_next)
+        
         if self.dynamic:
             all_edges_sampled = np.zeros((T_save, n, n))
             all_edges_sampled[0,:,:] = edges
@@ -179,10 +181,12 @@ class SpringSim(object):
             for i in range(1,T):
                 loc_next += self._delta_T*vel_next
                 loc_next, vel_next = self._clamp(loc_next, vel_next)
+                loc_all[0,:,:], vel[0,:,:] = loc_next, vel_next
                 
                 if i%sample_freq == 0:
                     loc[counter, :, :], vel[counter, :, :] = loc_next, vel_next
                     if self.dynamic: all_edges_sampled[counter,:,:] = edges
+                    sampled_indices.append(i)
                     counter += 1
                     
                 if self.dynamic:
@@ -208,11 +212,13 @@ class SpringSim(object):
             
             loc += np.random.randn(T_save, 2, self.n_balls) * self.noise_var
             vel += np.random.randn(T_save, 2, self.n_balls) * self.noise_var
+            sampled_indices = np.array(sampled_indices)
+            
             if self.dynamic: 
                 edges = all_edges_sampled
-                return loc, vel, edges, all_edges
+                return loc, vel, loc_all, vel_all ,edges, all_edges, sampled_indices
             
-            return loc, vel, edges
+            return loc, vel, loc_all, vel_all, edges, sampled_indices
                 
                 
                 
