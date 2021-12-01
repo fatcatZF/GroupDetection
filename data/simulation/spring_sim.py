@@ -181,7 +181,7 @@ class SpringSim(object):
             for i in range(1,T):
                 loc_next += self._delta_T*vel_next
                 loc_next, vel_next = self._clamp(loc_next, vel_next)
-                loc_all[0,:,:], vel[0,:,:] = loc_next, vel_next
+                loc_all[i,:,:], vel[i,:,:] = loc_next, vel_next
                 
                 if i%sample_freq == 0:
                     loc[counter, :, :], vel[counter, :, :] = loc_next, vel_next
