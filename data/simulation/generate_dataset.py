@@ -17,7 +17,7 @@ parser.add_argument("--n-balls", type=int, default=5, help="Number of balls in t
 parser.add_argument("--seed", type=int, default=42, help="Random seed")
 parser.add_argument("--dynamic", action="store_true", default=False, help="whether generate dynamic graphs")
 parser.add_argument("--dynamic-rule", type=int, default=0, help="select dynamic rule, 0 represents no dynamic")
-
+parser.add_argument("--dynamic-factor", type=float, default=0.01, help="reset time or flip probability increasing factor")
 
 args = parser.parse_args()
 args.dynamic = bool(args.dynamic and args.dynamic_rule)
