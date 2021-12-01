@@ -43,7 +43,7 @@ def dynamic_rule2(edges, age, num_atoms, spring_types, spring_prob,
         for j in range(whether_flip.shape[1]):
             whether_flip[i,j] = np.random.choice([1,0], p = [flip_probs[i,j],1-flip_probs[i,j]])
     whether_flip = np.tril(whether_flip)+np.tril(whether_flip, -1).T
-    np.fill(whether_flip, 0)
+    np.fill_diagonal(whether_flip, 0)
     whether_flip = whether_flip.astype("bool")
     edges[whether_flip] = (1-edges)[whether_flip]
     age += 1
@@ -190,8 +190,9 @@ class SpringSim(object):
                     counter += 1
                     
                 if self.dynamic:
-                    edges, age = self.dynamic_rule(edges, age, self.n_balls, self._spring_types, spring_prob)
                     all_edges[i,:,:] = edges
+                    edges, age = self.dynamic_rule(edges, age, self.n_balls, self._spring_types, spring_prob)
+                   
                     
                 forces_size = -self.interaction_strength*edges
                 np.fill_diagonal(forces_size, 0)
