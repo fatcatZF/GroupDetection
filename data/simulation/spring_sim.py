@@ -139,7 +139,7 @@ class SpringSim(object):
                                  p=spring_prob)
         edges = np.tril(edges)+np.tril(edges, -1).T
         np.fill_diagonal(edges, 0)
-        sampled_indices = [0]
+        sampled_indices = []
         loc = np.zeros((T_save,2,n))
         vel = np.zeros((T_save,2,n))
         loc_all = np.zeros((T,2, n))
