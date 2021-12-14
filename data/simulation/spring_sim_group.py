@@ -188,11 +188,11 @@ class SpringSim(object):
         counter = 0
         
         #Initialize groups
-        ga, ga_dict, ga_matrix, ga_values, gr_matrix = group_initialize(n, ga_values_factor)
+        ga, ga_dict, ga_matrix, ga_values, gr = group_initialize(n, ga_values_factor)
         #Initialize group assignment ages
         ga_ages = np.zeros_like(ga_matrix)
         #Initialize Interaction matrix 
-        edges = group_to_interaction(gr_matrix, K, b)
+        edges = group_to_interaction(gr, K, b)
         
         sampled_indices = []
         loc = np.zeros((T_save,2,n))
@@ -215,7 +215,7 @@ class SpringSim(object):
             ga_sampled = np.zeros((T_save, n)) #group labels of each atom at all sampled time steps
             gr_sampled = np.zeros((T_save, n, n)) #group Initialization
             ga_sampled[0,:] = ga
-            gr_sampled[0,:,:] = gr_matrix
+            gr_sampled[0,:,:] = gr
             
             
         
@@ -242,7 +242,7 @@ class SpringSim(object):
                 loc_next, vel_next = self._clamp(loc_next, vel_next)
                 loc_all[i,:,:], vel_all[i,:,:] = loc_next, vel_next
                 #compute current interaction edges based on group relationship
-                edges = group_to_interaction(gr_matrix, K, b)
+                edges = group_to_interaction(gr, K, b)
                 all_edges[i,:,:] = edges
                 
                 
@@ -250,9 +250,9 @@ class SpringSim(object):
                     loc[counter, :, :], vel[counter, :, :] = loc_next, vel_next
                     sampled_indices.append(i)
                     if self.dynamic:
-                        new_ga, new_ga_dict, new_ga_matrix, new_gr_matrix = sample_ga(ga_values)
+                        new_ga, new_ga_dict, new_ga_matrix, new_gr = sample_ga(ga_values)
                         ga_sampled[counter,:] = new_ga
-                        gr_sampled[counter,:,:] = new_gr_matrix                       
+                        gr_sampled[counter,:,:] = new_gr                       
                         #find the changed group assignment
                         changed_atoms = np.unique(np.where(ga!=new_ga)[0])
                         #reset the ga_values and ga_ages
@@ -261,9 +261,9 @@ class SpringSim(object):
                         ga = new_ga
                         ga_dict = new_ga_dict
                         ga_matrix = new_ga_matrix
-                        gr_matrix = new_gr_matrix
+                        gr = new_gr
                         #reevaluate edges
-                        edges = group_to_interaction(gr_matrix, K, b)
+                        edges = group_to_interaction(gr, K, b)
                         
                         
                     all_edges_sampled[counter,:,:] = edges
@@ -303,7 +303,7 @@ class SpringSim(object):
                 gr = gr_sampled
             
             
-            return loc, vel, loc_all, vel_all, all_edges_sampled, all_edges, ga, gr
+            return loc, vel, loc_all, vel_all, all_edges_sampled, all_edges, ga, gr, sampled_indices
                 
                 
             

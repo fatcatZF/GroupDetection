@@ -13,8 +13,8 @@ parser.add_argument("--sample-freq", type=int, default=100,
 parser.add_argument("--n-balls", type=int, default=5, help="Number of balls in the simulation.")
 parser.add_argument("--seed", type=int, default=42, help="Random seed")
 parser.add_argument("--dynamic", action="store_true", default=False, help="whether generate dynamic groups")
-parser.add_argument("--age-factor", type=int, default=0.001, help="age factor")
-parser.add_argument("--ga-values-factor", type=int, default=3, help="group assignment value factor")
+parser.add_argument("--age-factor", type=int, default=0.0001, help="age factor")
+parser.add_argument("--ga-values-factor", type=int, default=5, help="group assignment value factor")
 parser.add_argument("--K", type=float, default=3.0, help="K")
 parser.add_argument("--b", type=float, default= 0.1, help="b")
 
@@ -118,9 +118,9 @@ np.save('vel_all_test' + suffix + '.npy', vel_all_test)
 np.save("edges_all_test"+suffix+'.npy', edges_all_test)
 np.save("sampled_indices_all_test"+suffix+'.npy', sampled_indices_all_test)
 
-np.save("edges_sampled_all_train"+suffix+'.npy', edges_sampled_all_train)
-np.save("edges_sampled_all_valid"+suffix+'.npy', edges_sampled_all_valid)
-np.save("edges_sampled_all_test"+suffix+'.npy', edges_sampled_all_test)
+np.save("edges_sampled_all_train"+suffix+'.npy', edges_all_sampled_train)
+np.save("edges_sampled_all_valid"+suffix+'.npy', edges_all_sampled_valid)
+np.save("edges_sampled_all_test"+suffix+'.npy', edges_all_sampled_test)
 
 np.save("ga_train"+suffix+'.npy', ga_train)
 np.save("ga_valid"+suffix+'.npy', ga_valid)
