@@ -18,8 +18,41 @@ class MotionEmbedding(nn.Module):
         """
         X: states over time, shape: [batch_size, num_objects, num_timesteps, num_features]
         """
-        deltaX = X[:,:,1:,:]-X[:,:,:-1,:] #Motion, shape: [batch_size, num_objects, num_timesteps-1, n_in]
+        deltaX = X[:,:,1:,:]-X[:,:,:-1,:] #Motion; shape: [batch_size, num_objects, num_timesteps-1, n_in]
         return self.fc(deltaX) #Embeddings of shape: [batch_size, num_objects, num_timesteps-1, n_emb]
+    
+
+class InteractionEmbedding(nn.Module):
+    def __init__(self, n_h, n_emb):
+        """
+        n_h: hidden size of atoms
+        n_emb: embedding size of interactions(edges)
+        """
+        super(InteractionEmbedding, self).__init__()
+        self.fc = nn.Linear(2*n_h, n_emb)
+        
+    def forward(self, h, rel_rec, rel_send):
+        """
+        h: hidden states of nodes at different timesteps; shape: [batch_size, num_atoms, num_timesteps, n_h]
+        rel_rec: Matrix dnoting incomming edges of nodes: shape: [num_edges, num_atoms]
+        rel_send: Matrix denoting out edges of nodes; shape: [num_edges_atoms]
+        """
+        rel_rec_e = torch.unsqueeze(rel_rec, 0)
+        rel_send_e = torch.unsqueeze(rel_send, 0)
+        rel_rec_e = rel_rec_e.expand(h.size(0),rel_rec.size(0),rel_rec.size(1))
+        #shape: [batch_size, num_edges, num_atoms]
+        rel_send_e = rel_send_e.expand(h.size(0),rel_send.size(0), rel_send.size(1))
+        #flatten the hidden states overtime
+        h_re = torch.reshape(h, (h.size(0), h.size(1), -1)) #shape: [batch_size, num_atoms, num_timesteps*n_h]
+        receivers = torch.matmul(rel_rec_e, h_re) #shape: [batch_size, num_edgesm num_timesteps*n_h]
+        senders = torch.matmul(rel_send_e, h_re)
+        receivers = torch.reshape(receivers, (h.size(0), rel_rec.size(0), h.size(2), -1))
+        senders = torch.reshape(senders, (h.size(0), rel_send.size(0), h.size(2), -1))
+        edges = torch.cat([senders, receivers], dim=-1) #shape: [batch_size, num_edges, num_timesteps, 2*n_h]
+        em = self.fc(edges) #Edge embeddings; shape: [batch_size, num_edges, num_timesteps, n_emb]
+        return em
+        
+        
         
 
 class GRUCell(nn.Module):
@@ -66,9 +99,9 @@ class LSTMCell(nn.Module):
         
     def forward(self, x, c, h):
         """
-        x: input at time t; shape: [num_sims, num_atoms, num_features]
-        h: hidden at time t-1 ; shape: [num_sims, num_atoms, hidden_size]
-        c: cell at time t-1; shape: [num_sims, num_atoms, hidden_size]
+        x: input at time t; shape: [num_sims, num_atoms, n_in]
+        h: hidden at time t-1 ; shape: [num_sims, num_atoms, n_h]
+        c: cell at time t-1; shape: [num_sims, num_atoms, n_h]
         """
         i_t = torch.sigmoid(self.l_ii(x)+self.l_hi(h))
         f_t = torch.sigmoid(self.l_if(x)+self.l_hf(h))
@@ -77,8 +110,41 @@ class LSTMCell(nn.Module):
         c_t = f_t*c + i_t*g_t
         h_t = o_t * torch.tanh(c_t)
         return c_t, h_t
-        
+ 
+       
 
+class RNN(nn.Module):
+    def __init__(self, n_in, n_h, rnn_type="LSTM"):
+        """
+        n_in: input dimensions
+        n_h: hidden dimensions
+        """
+        super(RNN, self).__init__()
+        if rnn_type=="LSTM":
+            self.rnnCell = LSTMCell(n_in, n_h)
+        else: self.rnnCell = GRUCell(n_in, n_h)
+        self.n_h = n_h
+    def forward(self, X):
+        """
+        X: input sequence; shape:[batch_size, num_atoms, num_timesteps, n_in]
+        output: h; shape: [batch_size, num_atoms, num_timesteps, n_h]
+        """
+        timesteps = X.size(2) #number of time steps
+        h = [] 
+        h_i = torch.zeros(X.size(0), X.size(1), self.n_h)
+        if isinstance(self.rnnCell, LSTMCell):
+            c_i = torch.zeros_like(h_i)
+            for i in range(timesteps):
+                X_i = X[:,:,i,:]
+                c_i, h_i = self.rnnCell(X_i, c_i, h_i)
+                h.append(h_i)
+        else:
+            for i in range(timesteps):
+                X_i = X[:,:,i,:]
+                h_i = self.rnnCell(X_i, h_i)
+                h.append(h_i)
+        h = torch.permute(torch.stack(h), (1,2,0,-1)) #shape: [batch_size, num_atoms, num_timesteps, n_h]
+        return h
 
 
 
