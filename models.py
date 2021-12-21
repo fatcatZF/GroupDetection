@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from utils import *
 
 
+
+
 class MotionEmbedding(nn.Module):
     def __init__(self, n_in, n_emb):
         """
@@ -215,7 +217,7 @@ class RNNDecoder(nn.Module):
         receive_sequence: whether receive a sequence of interaction matrices
         """
         super(RNNDecoder, self).__init__()
-        self.states_embedding = MotionEmbedding(n_in, n_emb_node)
+        self.states_embedding = nn.Linear(n_in, n_emb_node)
         self.pooling_embedding = nn.Linear(n_h_node, n_emb_node)
         if rnn_type == "LSTM":
             self.rnnCell = LSTMCell(2*n_emb_node, n_h_node)
