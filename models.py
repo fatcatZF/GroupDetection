@@ -114,7 +114,7 @@ class LSTMCell(nn.Module):
        
 
 class RNN(nn.Module):
-    def __init__(self, n_in, n_h, rnn_type="LSTM"):
+    def __init__(self, n_in, n_h, rnn_type="LSTM", return_sequence="False"):
         """
         n_in: input dimensions
         n_h: hidden dimensions
@@ -124,6 +124,7 @@ class RNN(nn.Module):
             self.rnnCell = LSTMCell(n_in, n_h)
         else: self.rnnCell = GRUCell(n_in, n_h)
         self.n_h = n_h
+        self.return_sequence = return_sequence
     def forward(self, X):
         """
         X: input sequence; shape:[batch_size, num_atoms, num_timesteps, n_in]
@@ -144,7 +145,9 @@ class RNN(nn.Module):
                 h_i = self.rnnCell(X_i, h_i)
                 h.append(h_i)
         h = torch.permute(torch.stack(h), (1,2,0,-1)) #shape: [batch_size, num_atoms, num_timesteps, n_h]
-        return h
+        if self.return_sequence:
+            return h #return all hidden states
+        else: return h[:,:,-1,:] #return the hidden state of the last timestep
 
 
 
@@ -152,7 +155,8 @@ class RNN(nn.Module):
 
 
 class RNNEncoder(nn.Module):
-    def __init__(self, n_in, n_emb_node, n_emb_edge, n_h_node, n_h_edge, rnn_type="LSTM"):
+    def __init__(self, n_in, n_emb_node, n_emb_edge, n_h_node, n_h_edge, rnn_type="LSTM",
+                 return_interaction_sequence=False):
         """
         n_in: number of input features
         n_emb_node: node embedding size
@@ -163,9 +167,10 @@ class RNNEncoder(nn.Module):
         super(RNNEncoder, self).__init__()
         self.motion_embedding = MotionEmbedding(n_in, n_emb_node)
         self.interact_embedding = InteractionEmbedding(n_h_node, n_emb_edge)
-        self.motion_rnn = RNN(n_emb_node, n_h_node, rnn_type)
-        self.interact_rnn = RNN(n_emb_edge, n_h_edge, rnn_type)
+        self.motion_rnn = RNN(n_emb_node, n_h_node, rnn_type, return_sequence=True)
+        self.interact_rnn = RNN(n_emb_edge, n_h_edge, rnn_type, return_sequence=return_interaction_sequence)
         self.fc = nn.Linear(n_h_edge, 1)
+        self.return_interaction_sequence = return_interaction_sequence
         
     def forward(self, X, rel_rec, rel_send):
         """
@@ -177,13 +182,19 @@ class RNNEncoder(nn.Module):
         hm = self.motion_rnn(em) #hm: hidden states of motions; [batch_size, num_atoms, num_timesteps-1, n_h_node]
         ea = self.interact_embedding(hm, rel_rec, rel_send)
         #ea: interaction embedding; [batch_size, num_edges, num_timesteps-1, n_emb_edge]
-        h = self.interact_rnn(ea) #h: hidden states of interactions; [batch_size, num_edges, num_timesteps-1, n_h_edge]
+        h = self.interact_rnn(ea) 
+        #h: hidden states of interactions; if return_interaction_sequence: [batch_size, num_edges, num_timesteps-1, n_h_edge]
+        #else: [batch_size, num_edges, n_h_edge]
+        
         A =  torch.sigmoid(self.fc(h)) 
-        A = torch.permute(A.reshape(A.size(0),A.size(1),A.size(2)), (0,2,1))
-        #A: weights of edges; [batch_size, num_timesteps-1, num_edges]
-        A = torch.diag_embed(A) #size: [batch_size, num_timesteps-1, num_edges, num_edges]
+        if self.return_interaction_sequence:
+            A = torch.permute(A.reshape(A.size(0),A.size(1),A.size(2)), (0,2,1))
+        else:
+            A = A.reshape(A.size(0), A.size(1)) 
+        #A: weights of edges; [batch_size, (num_timesteps-1), num_edges]
+        A = torch.diag_embed(A) #size: [batch_size, (num_timesteps-1), num_edges, num_edges]
         #convert to adjacency matrix
-        A = torch.matmul(rel_send.t(), torch.matmul(A, rel_rec)) #size: [batch_size, num_timesteps-1, num_atoms, num_atoms]
+        A = torch.matmul(rel_send.t(), torch.matmul(A, rel_rec)) #size: [batch_size, (num_timesteps-1), num_atoms, num_atoms]
         
         
         return symmetrize(A)
