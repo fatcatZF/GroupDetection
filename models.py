@@ -232,7 +232,7 @@ class RNNDecoder(nn.Module):
         """
         A = symmetric_normalize(A) #symmetric normalize interaction matrix A
         X_i = X[:,:,0,:] #initial states; [batch_size, num_atoms, n_in]
-        es_i = self.states_embedding(X_i) #Initial states embedding
+        es_i = self.states_embedding(X_i) #Initial states embedding; [batch_size, num_atoms, n_emb_node]
         h_i = torch.zeros(X_i.size(0), X_i.size(1), self.n_h_node)
         # h_i: initial hidden states; [batch_size, num_atoms, n_h_node]
         if self.rnn_type == "LSTM":
@@ -243,8 +243,19 @@ class RNNDecoder(nn.Module):
             if self.receive_sequence:
                 A_i = A[:,i,:,:]
             else: A_i = A
-            H_i = torch.matmul(A_i, h_i) #Social Pooling; [batch_size, num_atoms, n_h_node]
-            eh_i = self.pooling_embedding(H_i) #Embedding of Social Pooling
+            H_i = torch.matmul(A_i, h_i) #H_i: Social Pooling; [batch_size, num_atoms, n_h_node]
+            eh_i = self.pooling_embedding(H_i) #Embedding of Social Pooling; [batch_size, num_atoms, n_emb_node]
+            esh_i = torch.cat([es_i, eh_i], dim=-1) 
+            #esh_i: concat of embedding of states and social pooling; [batch_size, num_atoms, 2*n_emb_node]
+            if self.rnn_type == "LSTM":
+                c_i, h_i = self.rnnCell(esh_i, c_i, h_i)
+            else:
+                h_i = self.rnnCell(esh_i, h_i)
+            X_i = X_i+self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
+            X_hat.append(X_i)
+            
+        X_hat = torch.permute(torch.stack(X_hat), (1,2,0,-1))
+        return X_hat
             
             
         
