@@ -114,7 +114,7 @@ class LSTMCell(nn.Module):
        
 
 class RNN(nn.Module):
-    def __init__(self, n_in, n_h, rnn_type="LSTM", return_sequence="False"):
+    def __init__(self, n_in, n_h, rnn_type="LSTM", return_sequence=False):
         """
         n_in: input dimensions
         n_h: hidden dimensions
@@ -204,10 +204,55 @@ class RNNEncoder(nn.Module):
 
 
 
-
-
 class RNNDecoder(nn.Module):
-    pass
+    def __init__(self, n_in, n_emb_node, n_h_node, rnn_type = "LSTM", 
+                 receive_sequence=False):
+        """
+        n_in: features of input states
+        n_emb_node: dimensions of node embedding
+        n_h_node: dimensions of node hidden states
+        rnn_type: LSTM or GRU
+        receive_sequence: whether receive a sequence of interaction matrices
+        """
+        super(RNNDecoder, self).__init__()
+        self.states_embedding = MotionEmbedding(n_in, n_emb_node)
+        self.pooling_embedding = nn.Linear(n_h_node, n_emb_node)
+        if rnn_type == "LSTM":
+            self.rnnCell = LSTMCell(2*n_emb_node, n_h_node)
+        else: self.rnnCell = GRUCell(2*n_emb_node, n_h_node)
+        self.out_fc = nn.Linear(n_h_node, n_in)
+        self.n_h_node = n_h_node
+        self.receive_sequence = receive_sequence
+        self.rnn_type = rnn_type
+        
+    def forward(self, X, A):
+        """
+        X: sequence of states; [batch_size, num_atoms, num_timesteps, n_in]
+        A: Interaction tensor: [batch_size, (num_timesteps-1), num_atoms, num_atoms]
+        """
+        A = symmetric_normalize(A) #symmetric normalize interaction matrix A
+        X_i = X[:,:,0,:] #initial states; [batch_size, num_atoms, n_in]
+        es_i = self.states_embedding(X_i) #Initial states embedding
+        h_i = torch.zeros(X_i.size(0), X_i.size(1), self.n_h_node)
+        # h_i: initial hidden states; [batch_size, num_atoms, n_h_node]
+        if self.rnn_type == "LSTM":
+            c_i = torch.zeros_like(h_i)
+        X_hat = [X_i] #predicted states
+        num_timesteps = X.size(2)-1
+        for i in range(num_timesteps):
+            if self.receive_sequence:
+                A_i = A[:,i,:,:]
+            else: A_i = A
+            H_i = torch.matmul(A_i, h_i) #Social Pooling; [batch_size, num_atoms, n_h_node]
+            eh_i = self.pooling_embedding(H_i) #Embedding of Social Pooling
+            
+            
+        
+        
+        
+        
+        
+        
 
 
 
