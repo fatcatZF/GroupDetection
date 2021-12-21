@@ -50,6 +50,8 @@ def dynamic_rule2(edges, age, num_atoms, spring_types, spring_prob,
     age[whether_flip] = 0
     np.fill_diagonal(age,0)
     return edges, age
+
+
     
 
 
@@ -59,7 +61,7 @@ class SpringSim(object):
     adapted for Dynamic Graphs
     """
     def __init__(self, n_balls=5, box_size=5., loc_std=0.5, vel_norm=0.5,
-                 interaction_strength=0.1, noise_var=0., dynamic=False, dynamic_rule=None):
+                 interaction_strength=0.1, noise_var=0., dynamic=False, dynamic_rule=None, dynamic_factor=0.001):
         self.n_balls = n_balls
         self.box_size = box_size
         self.loc_std = loc_std
@@ -73,6 +75,8 @@ class SpringSim(object):
         self.dynamic = dynamic and (dynamic_rule is not None)
         if self.dynamic:
             self.dynamic_rule = dynamic_rule
+            self.dynamic_factor = dynamic_factor
+        
         
     def _energy(self, loc, vel, edges):
         with np.errstate(divide="ignore"):
@@ -191,7 +195,8 @@ class SpringSim(object):
                     
                 if self.dynamic:
                     all_edges[i,:,:] = edges
-                    edges, age = self.dynamic_rule(edges, age, self.n_balls, self._spring_types, spring_prob)
+                    edges, age = self.dynamic_rule(edges, age, self.n_balls, self._spring_types, spring_prob, 
+                                                   self.dynamic_factor)
                    
                     
                 forces_size = -self.interaction_strength*edges

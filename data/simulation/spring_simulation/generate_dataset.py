@@ -34,7 +34,8 @@ elif args.dynamic_rule == 2:
     suffix = "_dynamic2_"
 
 
-sim = SpringSim(n_balls=args.n_balls, dynamic=args.dynamic, dynamic_rule=dynamic_rule)
+sim = SpringSim(n_balls=args.n_balls, dynamic=args.dynamic, dynamic_rule=dynamic_rule, 
+                dynamic_factor=args.dynamic_factor)
 
 suffix += str(args.n_balls)
 np.random.seed(args.seed)
