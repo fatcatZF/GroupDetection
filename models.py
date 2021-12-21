@@ -49,7 +49,7 @@ class InteractionEmbedding(nn.Module):
         receivers = torch.reshape(receivers, (h.size(0), rel_rec.size(0), h.size(2), -1))
         senders = torch.reshape(senders, (h.size(0), rel_send.size(0), h.size(2), -1))
         edges = torch.cat([senders, receivers], dim=-1) #shape: [batch_size, num_edges, num_timesteps, 2*n_h]
-        em = self.fc(edges) #Edge embeddings; shape: [batch_size, num_edges, num_timesteps, n_emb]
+        em = self.fc(edges) #Edge(Interaction) embeddings; shape: [batch_size, num_edges, num_timesteps, n_emb]
         return em
         
         
@@ -148,9 +148,71 @@ class RNN(nn.Module):
 
 
 
+
+
+
 class RNNEncoder(nn.Module):
-    pass
+    def __init__(self, n_in, n_emb_node, n_emb_edge, n_h_node, n_h_edge, rnn_type="LSTM"):
+        """
+        n_in: number of input features
+        n_emb_node: node embedding size
+        n_emb_edge: edge embedding size
+        n_h_node: hidden size of node 
+        n_h_edge: hidden size of edge
+        """
+        super(RNNEncoder, self).__init__()
+        self.motion_embedding = MotionEmbedding(n_in, n_emb_node)
+        self.interact_embedding = InteractionEmbedding(n_h_node, n_emb_edge)
+        self.motion_rnn = RNN(n_emb_node, n_h_node, rnn_type)
+        self.interact_rnn = RNN(n_emb_edge, n_h_edge, rnn_type)
+        self.fc = nn.Linear(n_h_edge, 1)
+        
+    def forward(self, X, rel_rec, rel_send):
+        """
+        X: [batch_size, num_atoms, num_timesteps, num_features]
+        rel_rec: [num_edges, num_atoms]
+        rel_send: [num_edges, num_atoms]
+        """
+        em = self.motion_embedding(X) #em: motion embedding; [batch_size, num_atoms, num_timesteps-1, num_features]
+        hm = self.motion_rnn(em) #hm: hidden states of motions; [batch_size, num_atoms, num_timesteps-1, n_h_node]
+        ea = self.interact_embedding(hm, rel_rec, rel_send)
+        #ea: interaction embedding; [batch_size, num_edges, num_timesteps-1, n_emb_edge]
+        h = self.interact_rnn(ea) #h: hidden states of interactions; [batch_size, num_edges, num_timesteps-1, n_h_edge]
+        A =  torch.sigmoid(self.fc(h)) 
+        A = torch.permute(A.reshape(A.size(0),A.size(1),A.size(2)), (0,2,1))
+        #A: weights of edges; [batch_size, num_timesteps-1, num_edges]
+        A = torch.diag_embed(A) #size: [batch_size, num_timesteps-1, num_edges, num_edges]
+        #convert to adjacency matrix
+        A = torch.matmul(rel_send.t(), torch.matmul(A, rel_rec)) #size: [batch_size, num_timesteps-1, num_atoms, num_atoms]
+        
+        
+        return symmetrize(A)
+        
+        
+
+
+
+
 
 
 class RNNDecoder(nn.Module):
     pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
