@@ -158,7 +158,7 @@ class RNN(nn.Module):
 
 class RNNEncoder(nn.Module):
     def __init__(self, n_in, n_emb_node, n_emb_edge, n_h_node, n_h_edge, rnn_type="LSTM",
-                 return_interaction_sequence=False):
+                 return_interaction_sequence=False, o_activate = torch.sigmoid):
         """
         n_in: number of input features
         n_emb_node: node embedding size
@@ -173,6 +173,7 @@ class RNNEncoder(nn.Module):
         self.interact_rnn = RNN(n_emb_edge, n_h_edge, rnn_type, return_sequence=return_interaction_sequence)
         self.fc = nn.Linear(n_h_edge, 1)
         self.return_interaction_sequence = return_interaction_sequence
+        self.o_activate = o_activate
         
     def forward(self, X, rel_rec, rel_send):
         """
@@ -188,7 +189,7 @@ class RNNEncoder(nn.Module):
         #h: hidden states of interactions; if return_interaction_sequence: [batch_size, num_edges, num_timesteps-1, n_h_edge]
         #else: [batch_size, num_edges, n_h_edge]
         
-        A =  torch.sigmoid(self.fc(h)) 
+        A =  self.o_activate(self.fc(h)) 
         if self.return_interaction_sequence:
             A = torch.permute(A.reshape(A.size(0),A.size(1),A.size(2)), (0,2,1))
         else:
@@ -199,7 +200,7 @@ class RNNEncoder(nn.Module):
         A = torch.matmul(rel_send.t(), torch.matmul(A, rel_rec)) #size: [batch_size, (num_timesteps-1), num_atoms, num_atoms]
         
         
-        return symmetrize(A)
+        return symmetrize(A), hm[:,:,-1,:]
         
         
 
@@ -227,23 +228,26 @@ class RNNDecoder(nn.Module):
         self.receive_sequence = receive_sequence
         self.rnn_type = rnn_type
         
-    def forward(self, X, A):
+    def forward(self, X, A, h_i=None, use_steps=None):
         """
         X: sequence of states; [batch_size, num_atoms, num_timesteps, n_in]
         A: Interaction tensor: [batch_size, (num_timesteps-1), num_atoms, num_atoms]
         """
         A = symmetric_normalize(A) #symmetric normalize interaction matrix A
-        X_i = X[:,:,0,:] #initial states; [batch_size, num_atoms, n_in]
+        X_i = X[:,:,-1,:] #initial states(Final state of sequence); [batch_size, num_atoms, n_in]
         es_i = self.states_embedding(X_i) #Initial states embedding; [batch_size, num_atoms, n_emb_node]
-        h_i = torch.zeros(X_i.size(0), X_i.size(1), self.n_h_node)
-        # h_i: initial hidden states; [batch_size, num_atoms, n_h_node]
+        if h_i is None:
+            h_i = torch.zeros(X_i.size(0), X_i.size(1), self.n_h_node)
+            # h_i: initial hidden states; [batch_size, num_atoms, n_h_node]
         if self.rnn_type == "LSTM":
             c_i = torch.zeros_like(h_i)
         X_hat = [X_i] #predicted states
         num_timesteps = X.size(2)-1
+        if use_steps is None:
+            use_steps = int(num_timesteps-1)
         for i in range(num_timesteps):
             if self.receive_sequence:
-                A_i = A[:,i,:,:]
+                A_i = A[:,num_timesteps-(i+1),:,:]
             else: A_i = A
             H_i = torch.matmul(A_i, h_i) #H_i: Social Pooling; [batch_size, num_atoms, n_h_node]
             eh_i = self.pooling_embedding(H_i) #Embedding of Social Pooling; [batch_size, num_atoms, n_emb_node]
@@ -253,8 +257,12 @@ class RNNDecoder(nn.Module):
                 c_i, h_i = self.rnnCell(esh_i, c_i, h_i)
             else:
                 h_i = self.rnnCell(esh_i, h_i)
-            X_i = X_i+self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
-            X_hat.append(X_i)
+            X_i_hat = X_i-self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
+            X_hat.insert(0, X_i_hat)
+            if i<use_steps:
+                X_i = X[:,:,num_timesteps-(i+1),:]
+            else:
+                X_i = X_i_hat
             
         X_hat = torch.permute(torch.stack(X_hat), (1,2,0,-1))
         return X_hat
