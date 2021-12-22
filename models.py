@@ -257,7 +257,7 @@ class RNNDecoder(nn.Module):
                 c_i, h_i = self.rnnCell(esh_i, c_i, h_i)
             else:
                 h_i = self.rnnCell(esh_i, h_i)
-            X_i_hat = X_i-self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
+            X_i_hat = X_i+self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
             X_hat.insert(0, X_i_hat)
             if i<use_steps:
                 X_i = X[:,:,num_timesteps-(i+1),:]
