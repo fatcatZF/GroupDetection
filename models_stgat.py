@@ -231,6 +231,67 @@ class STGATEncoder(nn.Module):
         h_T_o = torch.cat([m_out, h_T_p], dim=-1) #shape: [batch_size, num_atoms, n_motion_out+n_inter_out]
         
         return h_T_o, A, A_sym, A_norm
+    
+    
+class STGATDecoder(nn.Module):
+    def __init__(self, n_in=4, n_emb_node=16, noise_dim=16, n_h_receive=40, rnn_type = "LSTM"):
+        """
+        n_in: features of input states
+        n_emb_node: dimensions of node embedding
+        n_h_node: hidden states of RNN of Decoder
+        rnn_type: LSTM or GRU of decoder rnn
+        """
+        super(STGATDecoder, self).__init__()
+        self.noise_dim = noise_dim
+        self.n_h_node = noise_dim+n_h_receive
+        self.state_embedding = nn.Linear(n_in, n_emb_node)
+        self.rnn_type = rnn_type
+        if rnn_type == "LSTM":
+            self.rnnCell = LSTMCell(n_emb_node, noise_dim+n_h_receive)
+        else:
+            self.rnnCell = GRUCell(n_emb_node, noise_dim+n_h_receive)
+        
+        self.out_fc = nn.Linear(noise_dim+n_h_receive, n_in)
+        
+    def forward(self, X, hd_i, use_steps=None):
+        """
+        X: sequence of states; [batch_size, num_atoms, num_timesteps, n_h]
+        hd: hidden states from encoder; [batch_size, num_atoms, n_h_recieved]
+        use_steps: how many steps used as input
+        """
+        X_i = X[:,:,-1,:] #Final state of sequence; [batch_size, num_atoms, n_in]
+        noise = get_noise((hd_i.size(0), hd_i.size(1), self.noise_dim)) #get noise; [batch_size, num_atoms, noise_dim]
+        hd_i = torch.cat([hd_i, noise], dim=-1)
+        
+        if self.rnn_type == "LSTM":
+            cd_i = torch.zeros_like(hd_i)
+        X_hat = [X_i] #to store predicted states
+        num_timesteps = X.size(2)-1
+        if use_steps is None:
+            use_steps = int(num_timesteps-1)
+            
+        for i in range(num_timesteps):
+            es_i = self.state_embedding(X_i)
+            if self.rnn_type=="LSTM":
+                cd_i, hd_i = self.rnnCell(es_i, cd_i, hd_i)
+            else:
+                hd_i = self.rnnCell(es_i, hd_i)
+            
+            X_i_hat = X_i-self.out_fc(hd_i)
+            X_hat.insert(0, X_i_hat)
+            
+            if i<use_steps:
+                X_i = X[:,:,num_timesteps-(i+1),:]
+            else:
+                X_i = X_i_hat
+                
+        X_hat = torch.permute(torch.stack(X_hat), (1,2,0,-1))
+        return X_hat
+            
+        
+        
+        
+        
         
         
         
