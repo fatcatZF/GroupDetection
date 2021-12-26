@@ -150,7 +150,7 @@ class MLPEncoder(nn.Module):
         edges = torch.cat([senders, receivers], dim=2)
         return edges
     
-    def forward(self, inputs, rel_rel, rel_send):
+    def forward(self, inputs, rel_rec, rel_send):
         """
         Input shape: [batch_size,num_atoms,num_timesteps,num_dims]
         """
@@ -327,7 +327,7 @@ class MLPDecoder(nn.Module):
         rel_type = rel_type.unsqueeze(1).expand(sizes)
         #shape: [batch_size, num_timesteps, num_edges, num_edgetypes]
         
-        time_steps = inpputs.size(1)
+        time_steps = inputs.size(1)
         assert (pred_steps <= time_steps)
         preds = []
         
