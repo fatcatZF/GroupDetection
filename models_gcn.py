@@ -40,15 +40,27 @@ class GCNLayer(nn.Module):
 
 class TypedGCNAutoEncoder(nn.Module):
     """2 layer Typed GCN Encoder"""
-    def __init__(self, n_in, n_hid, n_out, edge_types, skip_first=True,
-                 mode="encoder"):
-        super(TypedGCNEncoder, self).__init__()
+    def __init__(self, n_in, n_hid, n_out, edge_types, dropout=0.,
+                 skip_first=True, mode="encoder"):
+        """
+        n_in: num of features of nodes
+        n_hid: number of hidden dimensions
+        n_out: number of output dimension
+        edge_types: number of edge_types
+        dropout: dropout rate when training this model
+        skip_first: if true, the first edge type denotes the 
+            non-interaction edge type
+        mode: encoder or decoder
+        """
+        
+        super(TypedGCNAutoEncoder, self).__init__()
         #first layer of GCNs
         self.gcns_1 = nn.ModuleList(
             [GCNLayer(n_in, n_hid) for _ in range(edge_types)])
         self.gcns_2 = nn.ModuleList(
-            [GCNLayer(n_hid, n_out)] for _ in range(edge_types))
+            [GCNLayer(n_hid, n_out) for _ in range(edge_types)])
         
+        self.dropout = dropout
         self.mode = mode
         self.skip_first = skip_first
         self.n_in = n_in
@@ -79,6 +91,7 @@ class TypedGCNAutoEncoder(nn.Module):
         
         for i in range(start_idx, len(self.gcns_1)):
             hidden = F.relu(self.gcns_1[i](inputs))
+            hidden = F.dropout(hidden, self.dropout, training=self.training)
             output = self.gcns_2[i](hidden)
             all_outputs += output
             
