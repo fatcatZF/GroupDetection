@@ -97,9 +97,9 @@ class SpringSim(object):
     copied from https://github.com/ethanfetaya/NRI/blob/master/data/synthetic_sim.py
     adapted for Dynamic Graphs
     """
-    def __init__(self, n_balls=5, box_size=5.,loc_std=0.5,vel_norm=0.5,
+    def __init__(self, n_balls=5, box_size=10.,loc_std=0.5,vel_norm=0.5,
                  interaction_strength=0.1, noise_var=0., age_factor=0.01, ga_values_factor=3,
-                 K=3, b=0.1, dynamic=False):
+                 K=3, b=0.001, dynamic=False):
         self.n_balls = n_balls
         self.box_size = box_size
         self.loc_std = loc_std
@@ -107,7 +107,7 @@ class SpringSim(object):
         self.interaction_strength = interaction_strength
         self.noise_var = noise_var
         
-        self._delta_T = 0.001
+        self._delta_T = 0.004
         self._max_F = 0.1/self._delta_T
         self.age_factor = age_factor
         self.ga_values_factor = ga_values_factor

@@ -11,23 +11,44 @@ def symmetrize(A):
     return 0.5*(A+AT)
 
 
-def symmetric_normalize(A):
+def laplacian_smooth(A):
     """
     args:
-      A: batches of adjacency matrices of Interactions
-         size of A: [batch_size, num_nodes, num_nodes]       
+      A: batches of adjacency matrices of symmetric Interactions
+         size of A: [batch_size, num_edgeTypes, num_nodes, num_nodes]       
     return: A_norm = (D**-0.5)A(D**-0.5), where D is the diagonal matrix of A
     """
-    #num_nodes = A.size(-1)
-    #I = torch.eye(num_nodes)
-    #I = I.unsqueeze(0)
-    #I = I.expand(A.size(0),A.size(-2),A.size(-1))
-    #A = A+I
-    D_values = A.sum(-1) #Degree values; size: [batch_size, num_nodes]
+    I = torch.eye(A.size(-1))
+    I = I.unsqueeze(0).unsqueeze(1)
+    I = I.expand(A.size(0), A.size(1), I.size(2), I.size(3))
+    #size: [batch_size, num_edgeTypes, num_atoms, num_atoms]
+    A_p = A+I
+    D_values = A_p.sum(-1) #Degree values; size: [batch_size, num_nodes]
     D_values_p = torch.pow(D_values, -0.5)
     D_p = torch.diag_embed(D_values_p) #size: [batch_size, num_nodes, num_nodes]
-    return torch.matmul(D_p, torch.matmul(A, D_p)) 
+    return torch.matmul(D_p, torch.matmul(A_p, D_p)) 
 
+
+def laplacian_sharpen(A):
+    """
+    args:
+        A; batches of adjacency matrices corresponding to edge types
+          size: [batch_size, num_edgeTypes, num_nodes, num_nodes]
+    """
+    I = torch.eye(A.size(-1))
+    I = I.unsqueeze(0).unsqueeze(1)
+    I = I.expand(A.size(0), A.size(1), I.size(2), I.size(3))
+    #size: [batch_size, num_edgeTypes, num_atoms, num_atoms]
+    Ap = 2*I-A
+    D_values = A.sum(-1)+2 #shape: [batch_size, num_edgeTypes, num_atoms]
+    D_values_p = torch.pow(D_values, -0.5)
+    D_p = torch.diag_embed(D_values_p)
+    
+    return torch.matmul(D_p, torch.matmul(Ap, D_p)) 
+    
+    
+    
+    
 
 
 
@@ -79,7 +100,7 @@ def kl_categorical_uniform(preds, num_atoms, num_edge_types, add_const=False,
 
 
 def kl_gaussian(mu, sigma):
-    return ((0.5*(1+torch.log(sigma**2)-mu**2-sigma**2)).sum()/(mu.size(0)*mu.size(1))).item()
+    return ((0.5*(1+torch.log(sigma**2)-mu**2-sigma**2)).sum()/(mu.size(0)*mu.size(1)))
 
 
 def get_triu_indices(num_nodes):
@@ -122,7 +143,12 @@ def get_tril_offdiag_indices(num_nodes):
 
 
 
-
+def edge_accuracy(preds, target):
+    """compute pairwise group accuracy"""
+    _, preds = preds.max(-1)
+    correct = preds.float().data.eq(
+        target.float().data.view_as(preds)).cpu().sum()
+    return np.float(correct) / (target.size(0) * target.size(1))
 
 
 

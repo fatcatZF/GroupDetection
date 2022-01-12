@@ -4,6 +4,11 @@ import torch.nn.functional as F
 from utils import *
 
 
+def shift_elu(x, alpha=1):
+    return F.elu(x, alpha=alpha)+alpha
+
+def shift_relu(x, eps=1e-5):
+    return F.relu(x)+eps
 
 
 class MotionEmbedding(nn.Module):
@@ -158,7 +163,7 @@ class RNN(nn.Module):
 
 class RNNEncoder(nn.Module):
     def __init__(self, n_in, n_emb_node, n_emb_edge, n_h_node, n_h_edge, rnn_type="LSTM",
-                 return_interaction_sequence=False, o_activate = torch.sigmoid):
+                 return_interaction_sequence=False, o_activate = shift_relu):
         """
         n_in: number of input features
         n_emb_node: node embedding size
@@ -257,7 +262,7 @@ class RNNDecoder(nn.Module):
                 c_i, h_i = self.rnnCell(esh_i, c_i, h_i)
             else:
                 h_i = self.rnnCell(esh_i, h_i)
-            X_i_hat = X_i+self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
+            X_i_hat = X_i-self.out_fc(h_i) #current state; [batch_size, num_atoms, n_in]
             X_hat.insert(0, X_i_hat)
             if i<use_steps:
                 X_i = X[:,:,num_timesteps-(i+1),:]

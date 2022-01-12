@@ -21,21 +21,21 @@ parser.add_argument("--no-cuda", action="store_true", default=False,
                     help="Disables CUDA training.")
 parser.add_argument("--seed",type=int,default=44, help="Random seed.")
 parser.add_argument("--epochs",type=int,default=100, help="Number of epochs to train.")
-parser.add_argument("--save-folder",type=str, default="logs",
+parser.add_argument("--save-folder",type=str, default="logs/rnn",
                     help="Where to save the trained model, leave empty to not save anything.")
 parser.add_argument("--load-folder",type=str,default='',help="Where to load the trained model if finetunning")
 
 parser.add_argument("--batch-size",type=int, default=64, help="Number of samples per batch.")
-parser.add_argument("--lr", type=float, default=0.0005, help="Initial learning rate.")
+parser.add_argument("--lr", type=float, default=0.0007, help="Initial learning rate.")
 parser.add_argument("--lr-decay", type=int, default=200,
                     help="After how many epochs to decay LR by a factor of gamma.")
 parser.add_argument("--gamma", type=float, default=0.5, help="LR decay factor.")
 parser.add_argument("--suffix", type=str, default="_static_5", help="suffix of simulation")
 parser.add_argument("--num-atoms",type=int, default=5, help="Number of atoms in simulation.")
 parser.add_argument("--dims", type=int, default=4, help="The number of input features")
-parser.add_argument("--node-embedding", type=int, default=256, help="Node Embedding Size")
-parser.add_argument("--edge-embedding", type=int, default=128, help="Edge Embedding Size")
-parser.add_argument("--node-hidden", type=int, default=128, help="The hidden size of nodes")
+parser.add_argument("--node-embedding", type=int, default=16, help="Node Embedding Size")
+parser.add_argument("--edge-embedding", type=int, default=32, help="Edge Embedding Size")
+parser.add_argument("--node-hidden", type=int, default=32, help="The hidden size of nodes")
 parser.add_argument("--edge-hidden", type=int, default=64, help="The hidden size of edges")
 parser.add_argument("--rnn-type", type=str, default="LSTM", help="Use LSTM or GRU")
 parser.add_argument("--return-interaction-sequence", action="store_true", default=False,
@@ -122,7 +122,7 @@ def train(epoch, best_val_loss):
         A, h_i = encoder(data, rel_rec, rel_send)
         output = decoder(data, A ,h_i, use_steps = args.use_steps)
         #print("A:",A)
-        loss = nll_gaussian(output, data, args.var)
+        loss = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
         loss.backward()
         optimizer.step()
         scheduler.step()

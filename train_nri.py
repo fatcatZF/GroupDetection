@@ -28,13 +28,13 @@ parser.add_argument('--lr', type=float, default=0.0005,
                     help='Initial learning rate.')
 parser.add_argument('--encoder-hidden', type=int, default=128,
                     help='Number of hidden units.')
-parser.add_argument('--decoder-hidden', type=int, default=228,
+parser.add_argument('--decoder-hidden', type=int, default=128,
                     help='Number of hidden units.')
 parser.add_argument('--temp', type=float, default=0.5,
                     help='Temperature for Gumbel softmax.')
 parser.add_argument('--num-atoms', type=int, default=5,
                     help='Number of atoms in simulation.')
-parser.add_argument('--encoder', type=str, default='mlp',
+parser.add_argument('--encoder', type=str, default='cnn',
                     help='Type of path encoder model (mlp or cnn).')
 parser.add_argument('--decoder', type=str, default='mlp',
                     help='Type of decoder model (mlp, rnn, or sim).')
@@ -78,7 +78,8 @@ parser.add_argument('--prior', action='store_true', default=False,
 parser.add_argument('--dynamic-graph', action='store_true', default=False,
                     help='Whether test with dynamically re-computed graph.')
 
-
+parser.add_argument("--gc-weight", type=float, default=1,
+                    help="Group Contrasitive Weight")
 
 
 
@@ -188,6 +189,8 @@ def train(epoch, best_val_loss):
     nll_train = []
     kl_train = []
     mse_train = []
+    acc_train = []
+    co_train = [] #contrastive loss
     
     encoder.train()
     decoder.train()
@@ -195,11 +198,15 @@ def train(epoch, best_val_loss):
     for batch_idx, (data, relations) in enumerate(train_loader):
         if args.cuda:
             data, relations = data.cuda(), relations.cuda()
+        relations = relations.float()
+        relations, relations_masked = relations[:,:,0], relations[:,:,1]
         data = data.float()
         optimizer.zero_grad()
         logits = encoder(data, rel_rec, rel_send)
+        
         edges = F.gumbel_softmax(logits, tau=args.temp, hard=args.hard, dim=-1)
         prob = F.softmax(logits, dim=-1)
+        loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), relations_masked.float()).mean()) #contrasitive loss
         
         output = decoder(data, edges, rel_rec, rel_send,
                              args.prediction_steps)
@@ -213,19 +220,26 @@ def train(epoch, best_val_loss):
             loss_kl = kl_categorical_uniform(prob, args.num_atoms,
                                              args.edge_types)
             
-        loss = loss_nll+loss_kl
+        loss = loss_nll+loss_kl+loss_co
         loss.backward()
         optimizer.step()
         scheduler.step()
         
+        acc = edge_accuracy(logits, relations)
+        acc_train.append(acc)
+        
         mse_train.append(F.mse_loss(output, target).item())
         nll_train.append(loss_nll.item())
         kl_train.append(loss_kl.item())
+        co_train.append(loss_co.item())
         
     
     nll_val = []
     kl_val = []
     mse_val = []
+    co_val = [] #contrasitive loss
+    loss_val = []
+    acc_val = []
     
     encoder.eval()
     decoder.eval()
@@ -233,6 +247,8 @@ def train(epoch, best_val_loss):
     for batch_idx, (data, relations) in enumerate(valid_loader):
         if args.cuda:
             data, relations = data.cuda(), relations.cuda()
+        relations = relations.float()
+        relations, relations_masked = relations[:,:,0], relations[:,:,1]
             
         data = data.float()
         with torch.no_grad():
@@ -240,43 +256,104 @@ def train(epoch, best_val_loss):
             edges = F.gumbel_softmax(logits, tau=args.temp, hard=True, dim=-1)
             prob = F.softmax(logits, dim=-1)
             #Validation output uses teacher forcing
+            loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), relations_masked.float()).mean()) #contrasitive loss
             output = decoder(data, edges, rel_rec, rel_send, args.prediction_steps)
             
             target = data[:, :, 1:, :]
             loss_nll = nll_gaussian(output, target, args.var)
             loss_kl = kl_categorical_uniform(prob, args.num_atoms, args.edge_types)
             
+            loss = loss_nll + loss_kl+loss_co
+            
+            acc = edge_accuracy(logits, relations)
+            acc_val.append(acc)
+            
             mse_val.append(F.mse_loss(output, target).item())
             nll_val.append(loss_nll.item())
             kl_val.append(loss_kl.item())
+            co_val.append(loss_co.item())
+            loss_val.append(loss.item())
+            
             
     
-    print('Epoch: {:04d}'.format(epoch),
+    print('Epoch: {:04d}'.format(epoch+1),
           'nll_train: {:.10f}'.format(np.mean(nll_train)),
           'kl_train: {:.10f}'.format(np.mean(kl_train)),
+          'co_train: {:.10f}'.format(np.mean(co_train)),
+          'acc_train: {:.10f}'.format(np.mean(acc_train)),
           'mse_train: {:.10f}'.format(np.mean(mse_train)),
           'nll_val: {:.10f}'.format(np.mean(nll_val)),
           'kl_val: {:.10f}'.format(np.mean(kl_val)),
           'mse_val: {:.10f}'.format(np.mean(mse_val)),
+          'co_val: {:.10f}'.format(np.mean(co_val)),
+          'acc_val: {:.10f}'.format(np.mean(acc_val)),
           'time: {:.4f}s'.format(time.time() - t))
     
-    if args.save_folder and np.mean(nll_val) < best_val_loss:
+    if args.save_folder and np.mean(loss_val) < best_val_loss:
         torch.save(encoder.state_dict(), encoder_file)
         torch.save(decoder.state_dict(), decoder_file)
         print('Best model so far, saving...')
-        print('Epoch: {:04d}'.format(epoch),
+        print('Epoch: {:04d}'.format(epoch+1),
               'nll_train: {:.10f}'.format(np.mean(nll_train)),
               'kl_train: {:.10f}'.format(np.mean(kl_train)),
+              'co_train: {:.10f}'.format(np.mean(co_train)),
+              'acc_train: {:.10f}'.format(np.mean(acc_train)),
               'mse_train: {:.10f}'.format(np.mean(mse_train)),
               'nll_val: {:.10f}'.format(np.mean(nll_val)),
               'kl_val: {:.10f}'.format(np.mean(kl_val)),
               'mse_val: {:.10f}'.format(np.mean(mse_val)),
+              'co_val: {:.10f}'.format(np.mean(co_val)),
+              'acc_val: {:.10f}'.format(np.mean(acc_val)),
               'time: {:.4f}s'.format(time.time() - t), file=log)
         log.flush()
         
-    return np.mean(nll_val)
+    return np.mean(loss_val)
 
 
+
+def test():
+    acc_test = []
+    nll_test = []
+    kl_test = []
+    mse_test = []
+    encoder.eval()
+    decoder.eval()
+    encoder.load_state_dict(torch.load(encoder_file))
+    decoder.load_state_dict(torch.load(decoder_file))
+    for batch_idx, (data, relations) in enumerate(test_loader):
+        if args.cuda:
+            data, relations = data.cuda(), relations.cuda()
+        
+        logits = encoder(data, rel_rec, rel_send)
+        edges = F.gumbel_softmax(logits, tau=args.temp, hard=True, dim=-1)
+        prob = F.softmax(logits, dim=-1)
+        
+        output = decoder(data, edges, rel_rec, rel_send, args.prediction_steps)
+        target = data[:, :, 1:, :]
+        loss_nll = nll_gaussian(output, target, args.var)
+        loss_kl = kl_categorical_uniform(prob, args.num_atoms, args.edge_types)
+        acc = edge_accuracy(logits, relations)
+        acc_test.append(acc)
+        
+        mse_test.append(F.mse_loss(output, target).item())
+        nll_test.append(loss_nll.item())
+        kl_test.append(loss_kl.item())
+        
+    print('--------------------------------')
+    print('--------Testing-----------------')
+    print('--------------------------------')
+    print('nll_test: {:.10f}'.format(np.mean(nll_test)),
+          'kl_test: {:.10f}'.format(np.mean(kl_test)),
+          'mse_test: {:.10f}'.format(np.mean(mse_test)),
+          'acc_test: {:.10f}'.format(np.mean(acc_test)))
+        
+        
+        
+        
+        
+    
+    
+    
 
 # Train model
 t_total = time.time()
@@ -293,7 +370,7 @@ if args.save_folder:
     print("Best Epoch: {:04d}".format(best_epoch), file=log)
     log.flush()
 
-
+test()
 
             
     

@@ -86,8 +86,7 @@ class CNN(nn.Module):
                 m.bias.data.zero_()
                 
     def forward(self, inputs):
-        # Input shape: [num_sims * num_edges, num_dims, num_timesteps]
-
+        # Input shape: [num_sims * num_edges, num_dims, num_timesteps]       
         x = F.relu(self.conv1(inputs))
         x = self.bn1(x)
         x = F.dropout(x, self.dropout_prob, training=self.training)
@@ -176,10 +175,11 @@ class MLPEncoder(nn.Module):
     
 
 class CNNEncoder(nn.Module):
-    def __init__(self, n_in, n_hid, n_out, do_prob=0., factor=True):
+    def __init__(self, n_in, n_hid, n_out, do_prob=0., factor=True, use_motion=True):
         super(CNNEncoder, self).__init__()
         self.dropout_prob = do_prob
         self.factor = factor
+        self.use_motion = use_motion
         self.cnn = CNN(n_in*2, n_hid, n_hid, do_prob)
         self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
         self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
@@ -232,6 +232,8 @@ class CNNEncoder(nn.Module):
     
     def forward(self, inputs, rel_rec, rel_send):
         #inputs shape: [batch_size, num_atoms, num_timesteps, num_dims]
+        if self.use_motion:
+            inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
         edges = self.node2edge_temporal(inputs, rel_rec, rel_send)
         #shape: [batch_size*num_edges, 2*num_dims, num_timesteps]
         x = self.cnn(edges)
