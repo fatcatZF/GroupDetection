@@ -191,6 +191,10 @@ def train(epoch, best_val_loss):
     mse_train = []
     acc_train = []
     co_train = [] #contrastive loss
+    gp_train = [] #group precision
+    ngp_train = [] #non-group precision
+    gr_train = [] #group recall
+    ngr_train = [] #non group recall
     
     encoder.train()
     decoder.train()
@@ -227,6 +231,14 @@ def train(epoch, best_val_loss):
         
         acc = edge_accuracy(logits, relations)
         acc_train.append(acc)
+        gp, ngp = edge_precision(logits, relations) #precision of group and non-group
+        gp_train.append(gp)
+        ngp_train.append(ngp)
+        
+        gr, ngr = edge_recall(logits, relations) #recall of group and non-group
+        gr_train.append(gr)
+        ngr_train.append(ngr)
+        
         
         mse_train.append(F.mse_loss(output, target).item())
         nll_train.append(loss_nll.item())
@@ -240,6 +252,10 @@ def train(epoch, best_val_loss):
     co_val = [] #contrasitive loss
     loss_val = []
     acc_val = []
+    gp_val = [] #group precision
+    ngp_val = [] #non-group precision
+    gr_val = [] #group recall
+    ngr_val = [] #non group recall
     
     encoder.eval()
     decoder.eval()
@@ -268,6 +284,14 @@ def train(epoch, best_val_loss):
             acc = edge_accuracy(logits, relations)
             acc_val.append(acc)
             
+            gp, ngp = edge_precision(logits, relations) #precision of group and non-group
+            gp_val.append(gp)
+            ngp_val.append(ngp)
+            
+            gr, ngr = edge_recall(logits, relations) #recall of group and non-group
+            gr_val.append(gr)
+            ngr_val.append(ngr)
+            
             mse_val.append(F.mse_loss(output, target).item())
             nll_val.append(loss_nll.item())
             kl_val.append(loss_kl.item())
@@ -281,12 +305,20 @@ def train(epoch, best_val_loss):
           'kl_train: {:.10f}'.format(np.mean(kl_train)),
           'co_train: {:.10f}'.format(np.mean(co_train)),
           'acc_train: {:.10f}'.format(np.mean(acc_train)),
+          'gr_train: {:.10f}'.format(np.mean(gr_train)),#average group recall
+          'ngr_train: {:.10f}'.format(np.mean(ngr_train)), #average non-group recall
+          'gp_train: {:.10f}'.format(np.mean(gp_train)), #average group precision
+          'ngp_train: {:.10f}'.format(np.mean(ngp_train)),#non-average group precision
           'mse_train: {:.10f}'.format(np.mean(mse_train)),
           'nll_val: {:.10f}'.format(np.mean(nll_val)),
           'kl_val: {:.10f}'.format(np.mean(kl_val)),
           'mse_val: {:.10f}'.format(np.mean(mse_val)),
           'co_val: {:.10f}'.format(np.mean(co_val)),
           'acc_val: {:.10f}'.format(np.mean(acc_val)),
+          'gr_val: {:.10f}'.format(np.mean(gr_val)),#average group recall
+          'ngr_val: {:.10f}'.format(np.mean(ngr_val)), #average non-group recall
+          'gp_val: {:.10f}'.format(np.mean(gp_val)), #average group precision
+          'ngp_val: {:.10f}'.format(np.mean(ngp_val)),#non-average group precision
           'time: {:.4f}s'.format(time.time() - t))
     
     if args.save_folder and np.mean(loss_val) < best_val_loss:
@@ -298,12 +330,20 @@ def train(epoch, best_val_loss):
               'kl_train: {:.10f}'.format(np.mean(kl_train)),
               'co_train: {:.10f}'.format(np.mean(co_train)),
               'acc_train: {:.10f}'.format(np.mean(acc_train)),
+              'gr_train: {:.10f}'.format(np.mean(gr_train)),#average group recall
+              'ngr_train: {:.10f}'.format(np.mean(ngr_train)), #average non-group recall
+              'gp_train: {:.10f}'.format(np.mean(gp_train)), #average group precision
+              'ngp_train: {:.10f}'.format(np.mean(ngp_train)),#non-average group precision
               'mse_train: {:.10f}'.format(np.mean(mse_train)),
               'nll_val: {:.10f}'.format(np.mean(nll_val)),
               'kl_val: {:.10f}'.format(np.mean(kl_val)),
               'mse_val: {:.10f}'.format(np.mean(mse_val)),
               'co_val: {:.10f}'.format(np.mean(co_val)),
               'acc_val: {:.10f}'.format(np.mean(acc_val)),
+              'gr_val: {:.10f}'.format(np.mean(gr_val)),#average group recall
+              'ngr_val: {:.10f}'.format(np.mean(ngr_val)), #average non-group recall
+              'gp_val: {:.10f}'.format(np.mean(gp_val)), #average group precision
+              'ngp_val: {:.10f}'.format(np.mean(ngp_val)),#non-average group precision
               'time: {:.4f}s'.format(time.time() - t), file=log)
         log.flush()
         
@@ -313,6 +353,10 @@ def train(epoch, best_val_loss):
 
 def test():
     acc_test = []
+    gp_test = [] #group precision
+    ngp_test = [] #non-group precision
+    gr_test = [] #group recall
+    ngr_test = [] #non group recall
     nll_test = []
     kl_test = []
     mse_test = []
@@ -335,6 +379,14 @@ def test():
         acc = edge_accuracy(logits, relations)
         acc_test.append(acc)
         
+        gp, ngp = edge_precision(logits, relations) #precision of group and non-group
+        gp_test.append(gp)
+        ngp_test.append(ngp)
+        
+        gr, ngr = edge_recall(logits, relations) #recall of group and non-group
+        gr_test.append(gr)
+        ngr_test.append(ngr)
+        
         mse_test.append(F.mse_loss(output, target).item())
         nll_test.append(loss_nll.item())
         kl_test.append(loss_kl.item())
@@ -345,7 +397,12 @@ def test():
     print('nll_test: {:.10f}'.format(np.mean(nll_test)),
           'kl_test: {:.10f}'.format(np.mean(kl_test)),
           'mse_test: {:.10f}'.format(np.mean(mse_test)),
-          'acc_test: {:.10f}'.format(np.mean(acc_test)))
+          'acc_test: {:.10f}'.format(np.mean(acc_test)),
+          'gr_test: {:.10f}'.format(np.mean(gr_test)),#average group recall
+          'ngr_test: {:.10f}'.format(np.mean(ngr_test)), #average non-group recall
+          'gp_test: {:.10f}'.format(np.mean(gp_test)), #average group precision
+          'ngp_test: {:.10f}'.format(np.mean(ngp_test)),#non-average group precision
+          )
         
         
         
