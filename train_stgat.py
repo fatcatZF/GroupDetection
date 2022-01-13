@@ -23,7 +23,7 @@ parser.add_argument("--epochs",type=int,default=100, help="Number of epochs to t
 parser.add_argument("--save-folder",type=str, default="logs/stgat",
                     help="Where to save the trained model, leave empty to not save anything.")
 parser.add_argument("--load-folder",type=str,default='',help="Where to load the trained model if finetunning")
-parser.add_argument("--batch-size",type=int, default=64, help="Number of samples per batch.")
+parser.add_argument("--batch-size",type=int, default=128, help="Number of samples per batch.")
 parser.add_argument("--lr", type=float, default=0.0005, help="Initial learning rate.")
 parser.add_argument("--lr-decay", type=int, default=200,
                     help="After how many epochs to decay LR by a factor of gamma.")
@@ -32,13 +32,13 @@ parser.add_argument("--suffix", type=str, default="_static_5", help="suffix of s
 parser.add_argument("--num-atoms",type=int, default=5, help="Number of atoms in simulation.")
 parser.add_argument("--dims", type=int, default=4, help="The number of input features")
 parser.add_argument("--node-embedding", type=int, default=16, help="Node Embedding Size")
-parser.add_argument("--node-hidden", type=int, default=32, help="The hidden size of nodes")
-parser.add_argument("--interaction-out", type=int, default=16, help="The output dimension of interaction in encoder")
+parser.add_argument("--node-hidden", type=int, default=16, help="The hidden size of nodes")
+parser.add_argument("--interaction-out", type=int, default=8, help="The output dimension of interaction in encoder")
 parser.add_argument("--motion-out", type=int, default=24, help="The output dimension of motions in encoder")
 parser.add_argument("--noise-dim", type=int, default=16, help="The hidden size of nodes")
 parser.add_argument("--rnn-type", type=str, default="LSTM", help="Use LSTM or GRU")
 parser.add_argument("--timesteps", type=int, default=49, help="The number of time steps per sample.")
-parser.add_argument("--use-steps", type=int, default=20, 
+parser.add_argument("--use-steps", type=int, default=1, 
                     help="Number of steps used as inputs")
 parser.add_argument("--var", type=float, default=5e-5, help="Output variance.")
 
@@ -123,7 +123,7 @@ def train(epoch, best_val_loss):
         use_steps = args.use_steps
         if epoch%10==0:
             print("sampled edge score matrix: ", A_sym[0,-1,:,:])
-        loss = nll_gaussian(output, data, args.var)
+        loss = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -141,7 +141,7 @@ def train(epoch, best_val_loss):
         with torch.no_grad():
             h_T_o, A, A_sym, A_norm = encoder(data, rel_rec, rel_send)
             output = decoder(data, h_T_o)
-            loss = nll_gaussian(output, data, args.var)
+            loss = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             nll_val.append(loss)
     
     
