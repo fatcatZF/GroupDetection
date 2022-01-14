@@ -41,6 +41,9 @@ parser.add_argument('--decoder', type=str, default='mlp',
 parser.add_argument('--no-factor', action='store_true', default=False,
                     help='Disables factor graph model.')
 
+parser.add_argument("--use-motion", action="store_true", default=False,
+                    help="use motion")
+
 parser.add_argument('--suffix', type=str, default='_static_5',
                     help='Suffix for training data (e.g. "_charged".')
 
@@ -134,7 +137,7 @@ if args.encoder == 'mlp':
 elif args.encoder == 'cnn':
     encoder = CNNEncoder(args.dims, args.encoder_hidden,
                          args.edge_types,
-                         args.encoder_dropout, args.factor)
+                         args.encoder_dropout, args.factor, use_motion=args.use_motion)
     
     
 #if args.decoder == 'mlp':

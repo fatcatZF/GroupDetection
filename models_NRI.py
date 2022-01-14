@@ -175,7 +175,7 @@ class MLPEncoder(nn.Module):
     
 
 class CNNEncoder(nn.Module):
-    def __init__(self, n_in, n_hid, n_out, do_prob=0., factor=True, use_motion=True):
+    def __init__(self, n_in, n_hid, n_out, do_prob=0., factor=True, use_motion=False):
         super(CNNEncoder, self).__init__()
         self.dropout_prob = do_prob
         self.factor = factor
