@@ -1,6 +1,25 @@
 import numpy as np
 import torch
 
+
+
+def create_edgeNode_relation(num_nodes, self_loops=False):
+    if self_loops:
+        indices = np.ones([num_nodes, num_nodes])
+    else:
+        indices = np.ones([num_nodes, num_nodes]) - np.eye(num_nodes)
+    rel_rec = np.array(encode_onehot(np.where(indices)[0]), dtype=np.float32)
+    rel_send = np.array(encode_onehot(np.where(indices)[1]), dtype=np.float32)
+    rel_rec = torch.from_numpy(rel_rec)
+    rel_send = torch.from_numpy(rel_send)
+    
+    return rel_rec, rel_send
+
+
+
+
+
+
 def symmetrize(A):
     """
     args:
@@ -100,7 +119,7 @@ def kl_categorical_uniform(preds, num_atoms, num_edge_types, add_const=False,
 
 
 def kl_gaussian(mu, sigma):
-    return ((0.5*(1+torch.log(sigma**2)-mu**2-sigma**2)).sum()/(mu.size(0)*mu.size(1)))
+    return -((0.5*(1+torch.log(sigma**2)-mu**2-sigma**2)).sum()/(mu.size(0)*mu.size(1)))
 
 
 def get_triu_indices(num_nodes):
