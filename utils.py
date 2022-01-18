@@ -18,6 +18,23 @@ def create_edgeNode_relation(num_nodes, self_loops=False):
 
 
 
+def normalize_graph(graph, add_self_loops=True):
+    """
+    args:
+      graph: adjacency matrix; [batch_size, num_nodes, num_nodes]
+    """
+    num_nodes = graph.size(1)
+    if add_self_loops:
+        I = torch.eye(num_nodes).unsqueeze(0)
+        I.expand(graph.size(0),I.size(1),I.size(2))
+        graph += I
+    degree = graph.sum(-1) #shape:[batch_size, num_nodes]
+    degree = 1./torch.sqrt(degree) #shape:[batch_size,num_nodes]
+    degree[degree==torch.inf]=0 #convert infs to 0s
+    degree = torch.diag_embed(degree) #shape:[batch_size,num_nodes, num_nodes]
+    return degree@graph@degree
+
+
 
 
 def symmetrize(A):
