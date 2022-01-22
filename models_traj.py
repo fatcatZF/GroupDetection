@@ -2,7 +2,7 @@
 Trajectory Representation Learning modules
 
 """
-
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -83,7 +83,7 @@ class ResCausalConvBlock(nn.Module):
     def __init__(self, n_in, n_out, kernel_size, dilation):
         super(ResCausalConvBlock, self).__init__()
         self.conv1 = CausalConv1d(n_in, n_out, kernel_size, dilation)
-        self.conv2 = CausalConv1d(n_out, n_out, kernel_size, dilation)
+        self.conv2 = CausalConv1d(n_out, n_out, kernel_size, dilation*2)
         self.bn1 = nn.BatchNorm1d(n_out)
         self.bn2 = nn.BatchNorm1d(n_out)
         self.skip_conv = CausalConv1d(n_in, n_out, 1, 1)
@@ -105,7 +105,7 @@ class GatedResCausalConvBlock(nn.Module):
     def __init__(self, n_in, n_out, kernel_size, dilation):
         super(GatedResCausalConvBlock, self).__init__()
         self.conv1 = GatedCausalConv1d(n_in, n_out, kernel_size, dilation)
-        self.conv2 = GatedCausalConv1d(n_out, n_out, kernel_size, dilation)
+        self.conv2 = GatedCausalConv1d(n_out, n_out, kernel_size, dilation*2)
         self.bn1 = nn.BatchNorm1d(n_out)
         self.bn2 = nn.BatchNorm1d(n_out)
         self.skip_conv = CausalConv1d(n_in, n_out, 1, 1)
@@ -131,7 +131,7 @@ class CausalCNNEncoder(nn.Module):
         for i in range(depth):
             in_channels = n_in if i==0 else c_hidden
             res_layers += [ResCausalConvBlock(in_channels, c_hidden, kernel_size,
-                                              dilation=2**i)]
+                                              dilation=2**(2*i))]
             
         
         self.res_blocks = torch.nn.Sequential(*res_layers)
@@ -282,7 +282,7 @@ class GraphTCNEncoder(nn.Module):
         for i in range(depth):
             in_channels = n_emb*n_heads if i==0 else c_hidden
             res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
-                                              dilation=2**i)]
+                                              dilation=2**(2*i))]
         self.res_blocks = torch.nn.Sequential(*res_layers)
             
         self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
@@ -423,7 +423,7 @@ class RNNDecoder(nn.Module):
             self.rnn_cell = LSTMCell(n_emb, n_hid)
         self.reverse = reverse
       
-    def forward(self, latents, inputs):
+    def forward(self, latents, inputs, teaching_rate=0.):
         """
         args:
           latents: latent variables from encoder;
@@ -431,6 +431,8 @@ class RNNDecoder(nn.Module):
           inputs: shape:[batch_size, num_atoms, num_timesteps, n_in]
         """
         num_timesteps = inputs.size(2)
+        teaching = np.random.choice([1,0], size=num_timesteps, p=[teaching_rate, 1-teaching_rate])
+        #teaching signal: whether to use teaching force
         hidden = torch.tanh(self.fc_latent(latents)) #map latent to initial hidden
         #shape: [batch_size,num_atoms, n_hid]
         hidden = hidden.view(hidden.size(0)*hidden.size(1),-1)
@@ -455,6 +457,8 @@ class RNNDecoder(nn.Module):
                 x_out = x_out.view(inputs.size(0), inputs.size(1),-1)
                 x = x-x_out
                 outputs.insert(0, x)
+                if teaching[i]==1:
+                    x = inputs[:,:,num_timesteps-(i+1),:]
                 x_emb = self.fc_embed(x)
                 
                 
@@ -471,6 +475,8 @@ class RNNDecoder(nn.Module):
                 x_out = x_out.view(inputs.size(0), inputs.size(1),-1)
                 x = x+x_out #residual connection
                 outputs.append(x)
+                if teaching[i]==1:
+                    x = inputs[:,:,i,:]
                 x_emb = self.fc_embed(x)
         outputs = torch.stack(outputs)
         outputs = outputs.permute(1,2,0,-1)

@@ -34,8 +34,8 @@ parser.add_argument('--temp', type=float, default=0.5,
                     help='Temperature for Gumbel softmax.')
 parser.add_argument('--num-atoms', type=int, default=5,
                     help='Number of atoms in simulation.')
-parser.add_argument('--encoder', type=str, default='cnn',
-                    help='Type of path encoder model (mlp or cnn).')
+parser.add_argument('--encoder', type=str, default='rescnn',
+                    help='Type of path encoder model (cnn or rescnn).')
 parser.add_argument('--decoder', type=str, default='mlp',
                     help='Type of decoder model (mlp, rnn, or sim).')
 parser.add_argument('--no-factor', action='store_true', default=False,
@@ -47,9 +47,9 @@ parser.add_argument("--use-motion", action="store_true", default=False,
 parser.add_argument('--suffix', type=str, default='_static_5',
                     help='Suffix for training data (e.g. "_charged".')
 
-parser.add_argument('--encoder-dropout', type=float, default=0.0,
+parser.add_argument('--encoder-dropout', type=float, default=0.,
                     help='Dropout rate (1 - keep probability).')
-parser.add_argument('--decoder-dropout', type=float, default=0.0,
+parser.add_argument('--decoder-dropout', type=float, default=0.,
                     help='Dropout rate (1 - keep probability).')
 
 parser.add_argument('--save-folder', type=str, default='logs/nri',
@@ -139,6 +139,11 @@ elif args.encoder == 'cnn':
                          args.edge_types,
                          args.encoder_dropout, args.factor, use_motion=args.use_motion)
     
+elif args.encoder=="rescnn":
+    encoder = ResCausalCNNEncoder(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+    
     
 #if args.decoder == 'mlp':
 decoder = MLPDecoder(n_in_node=args.dims,
@@ -156,10 +161,7 @@ if args.load_folder:
     decoder.load_state_dict(torch.load(decoder_file))
     args.save_folder = False
     
-optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
-                       lr=args.lr)
-scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
-                                gamma=args.gamma)
+
 
 triu_indices = get_triu_offdiag_indices(args.num_atoms)
 tril_indices = get_tril_offdiag_indices(args.num_atoms)
@@ -186,6 +188,15 @@ if args.cuda:
     triu_indices = triu_indices.cuda()
     tril_indices = tril_indices.cuda()
     
+
+optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
+                       lr=args.lr)
+scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
+                                gamma=args.gamma)
+
+
+
+
 
 def train(epoch, best_val_loss):
     t = time.time()
@@ -276,7 +287,7 @@ def train(epoch, best_val_loss):
             prob = F.softmax(logits, dim=-1)
             #Validation output uses teacher forcing
             loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), relations_masked.float()).mean()) #contrasitive loss
-            output = decoder(data, edges, rel_rec, rel_send, args.prediction_steps)
+            output = decoder(data, edges, rel_rec, rel_send, 1)
             
             target = data[:, :, 1:, :]
             loss_nll = nll_gaussian(output, target, args.var)
@@ -375,7 +386,7 @@ def test():
         edges = F.gumbel_softmax(logits, tau=args.temp, hard=True, dim=-1)
         prob = F.softmax(logits, dim=-1)
         
-        output = decoder(data, edges, rel_rec, rel_send, args.prediction_steps)
+        output = decoder(data, edges, rel_rec, rel_send, 1)
         target = data[:, :, 1:, :]
         loss_nll = nll_gaussian(output, target, args.var)
         loss_kl = kl_categorical_uniform(prob, args.num_atoms, args.edge_types)

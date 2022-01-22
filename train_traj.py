@@ -6,6 +6,7 @@ import argparse
 import pickle
 import os
 import datetime
+import math
 
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -33,7 +34,7 @@ parser.add_argument('--n-heads', type=int, default=2,
                     help='Dimension of embedding')
 
 parser.add_argument("--model-increment", action="store_true", default=False,
-                    help="whether model increments in the decoder.")
+                    help="whether model increments in the encoder.")
 
 parser.add_argument("--c-hidden", type=int, default=64,
                     help="number of hidden kernels of CNN")
@@ -52,6 +53,13 @@ parser.add_argument("--rnn-type", type=str, default="gru",
                     help="rnn cell type in the decoder")
 parser.add_argument("--reverse", action="store_true", default=False,
                     help="whether reverse output of rnn decoder.")
+
+parser.add_argument("--teaching-rate", type=float, default=1.,
+                    help="Initial Teaching rate.")
+parser.add_argument("--teaching-k", type=float, default=1e+3,
+                    help="Teaching decay rate.")
+parser.add_argument("--min-teaching", type=float, default=0.2,
+                    help="Minimal Teaching rate")
 
 
 parser.add_argument('--num-atoms', type=int, default=5,
@@ -89,7 +97,7 @@ torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
     
-
+initial_teaching_rate = args.teaching_rate
 
 #Save model and meta-data
 if args.save_folder:
@@ -159,7 +167,7 @@ if args.cuda:
     tril_indices = tril_indices.cuda()
     
 
-def train(epoch, best_val_loss):
+def train(epoch, best_val_loss, initial_teaching_rate):
     t = time.time()
     nll_train = []
     kl_train = []
@@ -180,6 +188,9 @@ def train(epoch, best_val_loss):
                                         torch.matmul(relations_masked, rel_rec))
         #shape:[batch_size, num_atom, num_atom]
         
+        teaching_rate = max((args.teaching_k/(args.teaching_k+math.exp(batch_idx/args.teaching_k)))*initial_teaching_rate,
+                            args.min_teaching)
+        
         optimizer.zero_grad()
         mu, sigma = encoder(data, rel_rec_sl, rel_send_sl)
         
@@ -189,7 +200,7 @@ def train(epoch, best_val_loss):
         loss_co = args.gc_weight*(torch.cdist(Z,Z)*relations_masked).mean()
                        
        
-        output = decoder(Z, data)
+        output = decoder(Z, data, teaching_rate)
         loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
         loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
@@ -231,7 +242,7 @@ def train(epoch, best_val_loss):
             
             loss_kl = kl_gaussian(mu, sigma)
             
-            output = decoder(Z, data)
+            output = decoder(Z, data, teaching_rate)
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
@@ -254,9 +265,10 @@ def train(epoch, best_val_loss):
           'kl_val: {:.10f}'.format(np.mean(kl_val)),
           'mse_val: {:.10f}'.format(np.mean(mse_val)),
           'co_val: {:.10f}'.format(np.mean(co_val)),
+          "teaching rate {:.10f}".format(teaching_rate),
           'time: {:.4f}s'.format(time.time() - t))
     
-    if args.save_folder and np.mean(loss_val) < best_val_loss:
+    if args.save_folder and np.mean(loss_val) < best_val_loss and initial_teaching_rate<=args.min_teaching:
         torch.save(encoder.state_dict(), encoder_file)
         torch.save(decoder.state_dict(), decoder_file)
         print('Best model so far, saving...')
@@ -269,10 +281,11 @@ def train(epoch, best_val_loss):
               'kl_val: {:.10f}'.format(np.mean(kl_val)),
               'mse_val: {:.10f}'.format(np.mean(mse_val)),
               'co_val: {:.10f}'.format(np.mean(co_val)),
+              "teaching rate {:.10f}".format(teaching_rate),
               'time: {:.4f}s'.format(time.time() - t), file=log)
         log.flush()
         
-    return np.mean(loss_val)
+    return np.mean(loss_val), teaching_rate
 
 
 def test():
@@ -296,7 +309,7 @@ def test():
             
             loss_kl = kl_gaussian(mu, sigma)
             
-            output = decoder(Z, data)
+            output = decoder(Z, data, teaching_rate=args.min_teaching)
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
@@ -324,8 +337,8 @@ t_total = time.time()
 best_val_loss = np.inf
 best_epoch = 0
 for epoch in range(args.epochs):
-    val_loss = train(epoch, best_val_loss)
-    if val_loss < best_val_loss:
+    val_loss, initial_teaching_rate = train(epoch, best_val_loss, initial_teaching_rate)
+    if val_loss < best_val_loss and initial_teaching_rate<=args.min_teaching:
         best_val_loss = val_loss
         best_epoch = epoch
 print("Optimization Finished!")

@@ -73,12 +73,16 @@ else:
 train_loader, valid_loader, test_loader, loc_max, loc_min, vel_max, vel_min = load_spring_sim(
     args.batch_size, args.suffix)
 
-
+"""
 off_diag = np.ones([args.num_atoms, args.num_atoms]) - np.eye(args.num_atoms)
 rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
 rel_send = np.array(encode_onehot(np.where(off_diag)[1]), dtype=np.float32)
 rel_rec = torch.from_numpy(rel_rec)
 rel_send = torch.from_numpy(rel_send)
+"""
+
+rel_rec_sl, rel_send_sl = create_edgeNode_relation(args.num_atoms, self_loops=True)
+rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
 
 senders = torch.where(rel_send != 0)[1]
 receivers = torch.where(rel_rec !=0)[1]
@@ -105,11 +109,15 @@ if args.cuda:
     decoder.cuda()
     rel_rec = rel_rec.cuda()
     rel_send = rel_send.cuda()
+    rel_rec_sl = rel_rec_sl.cuda()
+    rel_send_sl = rel_send_sl.cuda()
+    
     
 
 def train(epoch, best_val_loss):
     t = time.time()
     nll_train = []
+    mse_train = []
     encoder.train()
     decoder.train()
     
@@ -118,19 +126,20 @@ def train(epoch, best_val_loss):
             data, relations = data.cuda(),relations.cuda()
         data = data.float()
         optimizer.zero_grad()
-        h_T_o, A, A_sym, A_norm = encoder(data, rel_rec, rel_send)
-        output = decoder(data, h_T_o, )
-        use_steps = args.use_steps
-        if epoch%10==0:
-            print("sampled edge score matrix: ", A_sym[0,-1,:,:])
+        h_T_o, A, A_sym, A_norm = encoder(data, rel_rec_sl, rel_send_sl)
+        output = decoder(data, h_T_o, use_steps = args.use_steps)
+        
         loss = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
+        mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
         loss.backward()
         optimizer.step()
         scheduler.step()
         nll_train.append(loss.item())
+        mse_train.append(mse.item())
         
     
     nll_val = []
+    mse_val = []
     encoder.eval()
     decoder.eval()
     
@@ -140,14 +149,19 @@ def train(epoch, best_val_loss):
         data = data.float()
         with torch.no_grad():
             h_T_o, A, A_sym, A_norm = encoder(data, rel_rec, rel_send)
-            output = decoder(data, h_T_o)
+            output = decoder(data, h_T_o, use_steps = args.use_steps)
             loss = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
+            mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             nll_val.append(loss)
+            mse_val.append(mse.item())
+            
     
     
     print('Epoch: {:04d}'.format(epoch+1),
           'nll_train: {:.10f}'.format(np.mean(nll_train)),
+          "mse_train {:.10f}".format(np.mean(mse_train)),
           'nll_val: {:.10f}'.format(np.mean(nll_val)),
+          "mse_val {:.10f}".format(np.mean(mse_val)),
           'time: {:.4f}s'.format(time.time() - t))
     
     
@@ -157,7 +171,9 @@ def train(epoch, best_val_loss):
         print('Best model so far, saving...')
         print('Epoch: {:04d}'.format(epoch),
               'nll_train: {:.10f}'.format(np.mean(nll_train)),
+              "mse_train {:.10f}".format(np.mean(mse_train)),
               'nll_val: {:.10f}'.format(np.mean(nll_val)),
+              "mse_val {:.10f}".format(np.mean(mse_val)),
                'time: {:.4f}s'.format(time.time() - t), file=log
               )
         log.flush()

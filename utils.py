@@ -206,6 +206,19 @@ def edge_recall(preds, target):
     
 
 
+def indices_to_clusters(l):
+    """
+    args:
+        l: indices of clusters
+    return: clusters
+    """
+    d = dict()
+    for i,v in enumerate(l):
+        d[v] = d.get(v,[])
+        d[v].append(i)
+    clusters = list(d.values())
+    return clusters
+
 
 def compute_mitre(a, b):
     """
