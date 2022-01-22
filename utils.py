@@ -190,8 +190,8 @@ def edge_accuracy(preds, target):
 def edge_precision(preds, target):
     """compute pairwise group/non-group recall"""
     _, preds = preds.max(-1)
-    group_precision = ((target[preds==1]==1).sum())/preds[preds==1].sum()
-    non_group_precision = ((target[preds==0]==0).sum())/(preds[preds==0]==0).sum()
+    group_precision = ((target[preds==1]==1).cpu().sum())/preds[preds==1].cpu().sum()
+    non_group_precision = ((target[preds==0]==0).cpu().sum())/(preds[preds==0]==0).cpu().sum()
     return group_precision.item(), non_group_precision.item()
     
     
@@ -199,8 +199,8 @@ def edge_precision(preds, target):
 def edge_recall(preds, target):
     """compute pairwise group/non-group precision"""
     _,preds = preds.max(-1)
-    group_recall = ((preds[target==1]==1).sum())/(target[target==1]).sum()
-    non_group_recall = ((preds[target==0]==0).sum())/(target[target==0]==0).sum()
+    group_recall = ((preds[target==1]==1).cpu().sum())/(target[target==1]).cpu().sum()
+    non_group_recall = ((preds[target==0]==0).cpu().sum())/(target[target==0]==0).cpu().sum()
     return group_recall, non_group_recall
     
     
