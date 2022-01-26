@@ -22,6 +22,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
+parser.add_argument("--no-seed", action="store_true", default=False,
+                    help="don't use seed")
+
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of epochs to train.')
 parser.add_argument('--batch-size', type=int, default=64,
@@ -54,7 +57,7 @@ parser.add_argument("--rnn-type", type=str, default="gru",
 parser.add_argument("--reverse", action="store_true", default=False,
                     help="whether reverse output of rnn decoder.")
 
-parser.add_argument("--teaching-rate", type=float, default=1.,
+parser.add_argument("--teaching-rate", type=float, default=0.2,
                     help="Initial Teaching rate.")
 parser.add_argument("--teaching-k", type=float, default=1e+3,
                     help="Teaching decay rate.")
@@ -84,7 +87,7 @@ parser.add_argument('--var', type=float, default=5e-5,
                     help='Output variance.')
 
 
-parser.add_argument("--gc-weight", type=float, default=1,
+parser.add_argument("--gc-weight", type=float, default=100,
                     help="Group Contrasitive Weight")
 
 args = parser.parse_args()
@@ -92,10 +95,12 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 print(args)
 
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+
+if not args.no_seed:
+  np.random.seed(args.seed)
+  torch.manual_seed(args.seed)
+  if args.cuda:
+      torch.cuda.manual_seed(args.seed)
     
 initial_teaching_rate = args.teaching_rate
 
@@ -148,10 +153,7 @@ if args.load_folder:
     args.save_folder = False
     
 
-optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
-                       lr=args.lr)
-scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
-                                gamma=args.gamma)
+
 
 
 triu_indices = get_triu_offdiag_indices(args.num_atoms)
@@ -159,13 +161,20 @@ tril_indices = get_tril_offdiag_indices(args.num_atoms)
 
 
 if args.cuda:
-    encoder.cuda()
-    decoder.cuda()
+    encoder = encoder.cuda()
+    decoder = decoder.cuda()
     rel_rec = rel_rec.cuda()
     rel_send = rel_send.cuda()
+    rel_rec_sl = rel_rec_sl.cuda()
+    rel_send_sl = rel_send_sl.cuda()
     triu_indices = triu_indices.cuda()
     tril_indices = tril_indices.cuda()
     
+    
+optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
+                       lr=args.lr)
+scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
+                                gamma=args.gamma)
 
 def train(epoch, best_val_loss, initial_teaching_rate):
     t = time.time()
@@ -242,7 +251,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             
             loss_kl = kl_gaussian(mu, sigma)
             
-            output = decoder(Z, data, teaching_rate)
+            output = decoder(Z, data, teaching_rate=1)
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
@@ -309,7 +318,7 @@ def test():
             
             loss_kl = kl_gaussian(mu, sigma)
             
-            output = decoder(Z, data, teaching_rate=args.min_teaching)
+            output = decoder(Z, data, teaching_rate=1)
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             

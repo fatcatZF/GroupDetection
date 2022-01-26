@@ -149,7 +149,7 @@ class DMoN(nn.Module):
         
         degrees = A.sum(-1) #shape: [batch_size, num_nodes]
         degrees = degrees.unsqueeze(-1) #shape:[batch_size, num_nodes, 1]
-        edge_weights = degrees.sum(-1).sum(-1) #shape: [batch_size]
+        edge_weights = degrees.sum(-1).sum(-1) #shape: [batch_size], corresponding to m
         
         #graph_pooled = torch.matmul(A, assignments).transpose(-1,-2) #[batch_size, n_clusters, num_nodes]
         graph_pooled = torch.matmul(assignments.transpose(-1,-2),A)
@@ -166,7 +166,13 @@ class DMoN(nn.Module):
         
         spectral_loss = -torch.diagonal(graph_pooled-normalizer, dim1=-2, dim2=-1).sum()/2/edge_weights/batch_size
         
-        collapse_loss = (torch.norm(cluster_sizes)/num_nodes*torch.sqrt(torch.FloatTensor([self.n_clusters]))-1)/batch_size
+        
+        if next(self.parameters()).is_cuda:
+            
+            collapse_loss = (torch.norm(cluster_sizes, dim=-1)/num_nodes*torch.sqrt(torch.cuda.FloatTensor([self.n_clusters]))-1).sum()/batch_size
+            
+        else:
+            collapse_loss = (torch.norm(cluster_sizes, dim=-1)/num_nodes*torch.sqrt(torch.FloatTensor([self.n_clusters]))-1).sum()/batch_size
         
         
         return assignments, spectral_loss, collapse_loss
@@ -174,7 +180,7 @@ class DMoN(nn.Module):
     
 
 
-
+'''
 
 class GCN_DMoN(nn.Module):
     def __init__(self, n_in, n_hid, n_clusters, gcn_type="dmon",
@@ -208,10 +214,44 @@ class GCN_DMoN(nn.Module):
         
         return assignments, spectral_loss, collapse_loss
         
-        
+'''       
         
             
+class GCN_DMoN(nn.Module):
+    def __init__(self, n_in, n_hid, n_out ,n_clusters, gcn_type="dmon",
+                 activation="selu", collapse_regularization=0.1,
+                 dropout_rate=0):
+        super(GCN_DMoN, self).__init__()
+        if gcn_type.lower() == "dmon":
+            self.gcn_h = GCNLayer_Dmon(n_in, n_hid)
+            self.gcn_o = GCNLayer_Dmon(n_hid, n_out)
+        else:
+            self.gcn_h = GCNLayer_Kipf(n_in, n_hid)
+            self.gcn_o = GCNLayer_Kipf(n_hid, n_out)
+            
+            
+        self.dmon = DMoN(n_out, n_clusters, collapse_regularization, dropout_rate)
+        if activation.lower() == "relu":
+            self.activation = F.relu
+        else: self.activation = F.selu
         
+    def forward(self, A, X):
+        """
+        args:
+            A: adjacency matrix; shape:[batch_size, num_nodes]
+            X:node features; shape:[batch_size, num_nodes, n_in]
+        """
+        if isinstance(self.gcn_h, GCNLayer_Dmon):
+            A_normalized = normalize_graph(A, add_self_loops=False)
+        else:
+            A_normalized = normalize_graph(A, add_self_loops=True)
+            
+        hidden = self.activation(self.gcn_h(A_normalized, X))
+        #shape: [batch_size, num_nodes, n_hid]
+        hidden = self.activation(self.gcn_o(A_normalized, hidden))
+        assignments, spectral_loss, collapse_loss = self.dmon(A, hidden)
+        
+        return assignments, spectral_loss, collapse_loss    
             
         
         

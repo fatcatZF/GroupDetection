@@ -20,15 +20,18 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
+parser.add_argument("--no-seed", action="store_true", default=False,
+                    help="don't use seed")
+
 parser.add_argument('--epochs', type=int, default=500,
                     help='Number of epochs to train.')
 parser.add_argument('--batch-size', type=int, default=128,
                     help='Number of samples per batch.')
 parser.add_argument('--lr', type=float, default=0.0005,
                     help='Initial learning rate.')
-parser.add_argument('--encoder-hidden', type=int, default=128,
+parser.add_argument('--encoder-hidden', type=int, default=256,
                     help='Number of hidden units.')
-parser.add_argument('--decoder-hidden', type=int, default=128,
+parser.add_argument('--decoder-hidden', type=int, default=256,
                     help='Number of hidden units.')
 parser.add_argument('--temp', type=float, default=0.5,
                     help='Temperature for Gumbel softmax.')
@@ -92,10 +95,12 @@ args.factor = not args.no_factor
 print(args)
 
 
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+
+if not args.no_seed:
+  np.random.seed(args.seed)
+  torch.manual_seed(args.seed)
+  if args.cuda:
+      torch.cuda.manual_seed(args.seed)
 
 if args.dynamic_graph:
     print("Testing with dynamically re-computed graph.")

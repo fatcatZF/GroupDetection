@@ -41,6 +41,7 @@ def symmetrize(A):
     """
     args:
         A: batches of Interaction matrices
+          [batch_size, num_nodes, num_nodes]
     return: A_sym: symmetric version of A
     """
     AT = A.transpose(-1,-2)
