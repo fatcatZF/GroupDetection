@@ -210,8 +210,8 @@ def edge_recall(preds, target):
 def indices_to_clusters(l):
     """
     args:
-        l: indices of clusters
-    return: clusters
+        l: indices of clusters, e.g.. [0,0,1,1]
+    return: clusters, e.g. [(0,1),(2,3)]
     """
     d = dict()
     for i,v in enumerate(l):
@@ -288,7 +288,26 @@ def compute_groupMitre(target, predict):
     predict_p = create_counterPart(predict)
     recall = compute_mitre(target_p, predict_p)
     precision = compute_mitre(predict_p, target_p)
-    F1 = 2*recall*precision/(recall+precision)
+    if recall==0 and precision==0:
+        F1 = 0
+    else:
+        F1 = 2*recall*precision/(recall+precision)
     return recall, precision, F1
+
+
+
+def compute_groupMitre_labels(target, predict):
+    """
+    compute group mitre given indices
+    args: target, predict: list of indices of groups
+       e.g. [0,0,1,1]
+    """
+    target = indices_to_clusters(target)
+    predict = indices_to_clusters(predict)
+    recall, precision, F1 = compute_groupMitre(target, predict)
+    return recall, precision, F1
+
+
+
 
 

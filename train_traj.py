@@ -57,11 +57,11 @@ parser.add_argument("--rnn-type", type=str, default="gru",
 parser.add_argument("--reverse", action="store_true", default=False,
                     help="whether reverse output of rnn decoder.")
 
-parser.add_argument("--teaching-rate", type=float, default=0.2,
+parser.add_argument("--teaching-rate", type=float, default=0.,
                     help="Initial Teaching rate.")
 parser.add_argument("--teaching-k", type=float, default=1e+3,
                     help="Teaching decay rate.")
-parser.add_argument("--min-teaching", type=float, default=0.2,
+parser.add_argument("--min-teaching", type=float, default=0.,
                     help="Minimal Teaching rate")
 
 
@@ -206,7 +206,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         #latent variables
         Z = mu+sigma*torch.randn_like(sigma)
         #shape: [batch_size, num_atom, n_latent]
-        loss_co = args.gc_weight*(torch.cdist(Z,Z)*relations_masked).mean()
+        loss_co = args.gc_weight*(torch.cdist(Z,Z, p=1)*relations_masked).mean()
                        
        
         output = decoder(Z, data, teaching_rate)
@@ -247,7 +247,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         with torch.no_grad():
             mu, sigma = encoder(data, rel_rec_sl, rel_send_sl)
             Z = mu+sigma*torch.randn_like(sigma)
-            loss_co = args.gc_weight*(torch.cdist(Z,Z)*relations_masked).mean()
+            loss_co = args.gc_weight*(torch.cdist(Z,Z, p=1)*relations_masked).mean()
             
             loss_kl = kl_gaussian(mu, sigma)
             

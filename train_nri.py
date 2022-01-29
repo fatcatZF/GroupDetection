@@ -84,7 +84,7 @@ parser.add_argument('--prior', action='store_true', default=False,
 parser.add_argument('--dynamic-graph', action='store_true', default=False,
                     help='Whether test with dynamically re-computed graph.')
 
-parser.add_argument("--gc-weight", type=float, default=1,
+parser.add_argument("--gc-weight", type=float, default=100.,
                     help="Group Contrasitive Weight")
 
 

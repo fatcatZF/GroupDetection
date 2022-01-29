@@ -145,11 +145,13 @@ class DMoN(nn.Module):
         num_nodes = A.size(1) #get number of nodes
         assignments = torch.softmax(self.dropout(self.fc(X)), dim=-1) #shape:[batch_size,num_nodes,n_clusters]
         cluster_sizes = assignments.sum(1) #shape: [batch_size, num_clusters]
-        assignments_pooling = assignments / cluster_sizes #shape:[batch_size,num_nodes,n_clusters]
+        #assignments_pooling = assignments / cluster_sizes #shape:[batch_size,num_nodes,n_clusters]
         
         degrees = A.sum(-1) #shape: [batch_size, num_nodes]
         degrees = degrees.unsqueeze(-1) #shape:[batch_size, num_nodes, 1]
         edge_weights = degrees.sum(-1).sum(-1) #shape: [batch_size], corresponding to m
+        edge_weights_expand = edge_weights.unsqueeze(-1).unsqueeze(-1)
+        edge_weights_expand = edge_weights_expand.expand(edge_weights.size(0), self.n_clusters, self.n_clusters)
         
         #graph_pooled = torch.matmul(A, assignments).transpose(-1,-2) #[batch_size, n_clusters, num_nodes]
         graph_pooled = torch.matmul(assignments.transpose(-1,-2),A)
@@ -158,13 +160,16 @@ class DMoN(nn.Module):
         #Compute the rank-1 normalizer matrix S^T*d*d^T*S
         normalizer_left = torch.matmul(assignments.transpose(-1,-2), degrees)
         #shape: [batch_size, n_cluster, 1]
+        #print("normalizer_left size: ", normalizer_left.size())
         normalizer_right = torch.matmul(degrees.transpose(-1,-2), assignments)
         #shape: [batch_size, 1, n_cluster]
+        #print("normalizer_right size: ", normalizer_right.size())
         
-        normalizer = torch.matmul(normalizer_left, normalizer_right)/2/edge_weights
+        normalizer = torch.matmul(normalizer_left, normalizer_right)/2/edge_weights_expand
         #shape:[batch_size, n_cluster, n_cluster]
         
-        spectral_loss = -torch.diagonal(graph_pooled-normalizer, dim1=-2, dim2=-1).sum()/2/edge_weights/batch_size
+        spectral_loss = -(torch.diagonal(graph_pooled-normalizer, dim1=-2, dim2=-1).sum(-1)/2/edge_weights).sum()/batch_size
+        #average spectral_loss of the batch
         
         
         if next(self.parameters()).is_cuda:

@@ -284,6 +284,7 @@ class GraphTCNEncoder(nn.Module):
             res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
                                               dilation=2**(2*i))]
         self.res_blocks = torch.nn.Sequential(*res_layers)
+        self.maxpool = nn.MaxPool1d(kernel_size=3)
             
         self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
         self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
@@ -309,6 +310,7 @@ class GraphTCNEncoder(nn.Module):
         #shape: [total_trajectories, n_in, num_timesteps]
         
         x = self.res_blocks(x) #shape: [total_trajectories, c_hidden, num_timesteps]
+        x = self.maxpool(x)
         pred = self.conv_predict(x)       
         attention = F.softmax(self.conv_attention(x), dim=-1) #attention over timesteps
         pred_attention = (pred*attention).mean(dim=2) #shape: [total_trajctories, c_out]
