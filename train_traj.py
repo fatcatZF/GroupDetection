@@ -29,7 +29,7 @@ parser.add_argument('--epochs', type=int, default=100,
                     help='Number of epochs to train.')
 parser.add_argument('--batch-size', type=int, default=64,
                     help='Number of samples per batch.')
-parser.add_argument('--lr', type=float, default=7e-3,
+parser.add_argument('--lr', type=float, default=1e-2,
                     help='Initial learning rate.')
 parser.add_argument('--n-emb', type=int, default=16,
                     help='Dimension of embedding')
