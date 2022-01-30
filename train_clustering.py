@@ -96,12 +96,13 @@ parser.add_argument("--kernel-size", type=int, default=5,
 
 
 #Parametres of GCN
-parser.add_argument("--gcn-hid", type=int, default=16,
+parser.add_argument("--gcn-hid", type=int, default=24,
                     help="GCN hidden size.")
-parser.add_argument("--gcn-out", type=int, default=8,
+parser.add_argument("--gcn-out", type=int, default=16,
                     help="GCN output size.")
-parser.add_argument("--collapse-regularization", type=float,
-                    default=0., help="Collapse regularization.")
+parser.add_argument("--n-clusters", type=int, default=8,
+                    help="number of clusters.")
+
 
 
 

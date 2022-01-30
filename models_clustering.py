@@ -73,7 +73,7 @@ class InnerProductDecoder(nn.Module):
 
 
 class GCNEncoder(nn.Module):
-    def __init__(self, n_in, n_hid, n_out):
+    def __init__(self, n_in, n_hid, n_out, n_clusters=8):
         """
         args:
             n_in: input features
@@ -82,8 +82,9 @@ class GCNEncoder(nn.Module):
         """
         super(GCNEncoder,self).__init__()
         self.gcn_h = GCNLayer(n_in, n_hid)
-        self.bn = nn.BatchNorm1d(n_hid)
+        self.bn = nn.BatchNorm1d(n_out)
         self.gcn_o = GCNLayer(n_hid, n_out)
+        self.fc_out = nn.Linear(n_out, n_clusters)
         
     def batch_norm(self, X):
         """
@@ -102,8 +103,10 @@ class GCNEncoder(nn.Module):
             X: feature matrix, shape: [batch_size, num_nodes, n_in]
         """
         H = F.selu(self.gcn_h(A, X))
+        H = F.selu((self.gcn_o(A, H)))
         H = self.batch_norm(H)
-        H = F.softmax((self.gcn_o(A, H)),dim=-1)
+        H = F.softmax(self.fc_out(H),dim=-1)
+        
         return H
         
         

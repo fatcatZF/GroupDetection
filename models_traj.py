@@ -67,7 +67,7 @@ class GatedCausalConv1d(nn.Module):
                                   dilation)
         
     def forward(self, x):
-        return torch.sigmoid(self.convg(x))*self.convs(x)
+        return torch.sigmoid(self.convg(x))*torch.tanh(self.convs(x))
             
         
 
