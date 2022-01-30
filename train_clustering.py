@@ -253,10 +253,10 @@ def train(epoch, best_val_loss):
             A = symmetrize(A) #shape: [batch_size, num_atoms, num_atoms]
             A = (A>0.5).float()
             A_norm = normalize_graph(A, add_self_loops=False)
+            
+            I = torch.eye(num_nodes)
             if args.cuda:
-                I = torch.cuda.eye(num_nodes)
-            else:
-                I = torch.eye(num_nodes)
+                I = I.cuda()
             I = I.expand(batch_size, num_nodes,num_nodes)
             A_comp = torch.matrix_power(A+I, num_nodes)
             A_comp = (A_comp>0).float()
