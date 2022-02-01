@@ -86,7 +86,7 @@ def load_spring_sim(batch_size=1 , suffix="_static_5", folder="data/simulation/s
  """
 
 def load_spring_sim(batch_size=1, suffix='', label_rate=0.02, save_folder="data/simulation/spring_simulation",
-              load_folder=None):
+              load_folder=None, normalize=True):
     if load_folder is not None:
         #load saved data
         train_loader_path = os.path.join(load_folder, "train_data_loader"+suffix+".pth")
@@ -126,15 +126,16 @@ def load_spring_sim(batch_size=1, suffix='', label_rate=0.02, save_folder="data/
     datainfo = np.array([loc_max, loc_min, vel_max, vel_min])
     datainfo_file = "datainfo"+suffix+".npy"
 
-    # Normalize to [-1, 1]
-    loc_train = (loc_train - loc_min) * 2 / (loc_max - loc_min) - 1
-    vel_train = (vel_train - vel_min) * 2 / (vel_max - vel_min) - 1
+    if normalize:
+      # Normalize to [-1, 1]
+      loc_train = (loc_train - loc_min) * 2 / (loc_max - loc_min) - 1
+      vel_train = (vel_train - vel_min) * 2 / (vel_max - vel_min) - 1
 
-    loc_valid = (loc_valid - loc_min) * 2 / (loc_max - loc_min) - 1
-    vel_valid = (vel_valid - vel_min) * 2 / (vel_max - vel_min) - 1
+      loc_valid = (loc_valid - loc_min) * 2 / (loc_max - loc_min) - 1
+      vel_valid = (vel_valid - vel_min) * 2 / (vel_max - vel_min) - 1
 
-    loc_test = (loc_test - loc_min) * 2 / (loc_max - loc_min) - 1
-    vel_test = (vel_test - vel_min) * 2 / (vel_max - vel_min) - 1
+      loc_test = (loc_test - loc_min) * 2 / (loc_max - loc_min) - 1
+      vel_test = (vel_test - vel_min) * 2 / (vel_max - vel_min) - 1
 
     # Reshape to: [num_sims, num_atoms, num_timesteps, num_dims]
     loc_train = np.transpose(loc_train, [0, 3, 1, 2])
