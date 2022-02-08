@@ -287,7 +287,7 @@ def test():
             mse_test.append(loss_mse.item())
             nll_test.append(loss_nll.item())
             #kl_test.append(loss_kl.item())
-            loss_test.append(loss.item())
+            loss_test.append(loss_nll.item())
             
     print('--------------------------------')
     print('--------Testing-----------------')
