@@ -212,5 +212,130 @@ def load_spring_sim(batch_size=1, suffix='', label_rate=0.02, save_folder="data/
 
     return train_data_loader, valid_data_loader, test_data_loader, loc_max, loc_min, vel_max, vel_min   
     
+
+
+def load_gordon(batch_size=1, suffix="acc" ,label_rate=0.02,
+                save_folder="data/gordon/preprocessed", load_folder=None, normalize=True):
+    if load_folder is not None:
+        #load saved data
+        train_loader_path = os.path.join(load_folder, "train_data_loader_"+suffix+".pth")
+        valid_loader_path = os.path.join(load_folder, "valid_data_loader_"+suffix+".pth")
+        test_loader_path = os.path.join(load_folder, "test_data_loader_"+suffix+".pth")
+        
+        train_data_loader = torch.load(train_loader_path)
+        valid_data_loader = torch.load(valid_loader_path)
+        test_data_loader = torch.load(test_loader_path)
+       
+        return train_data_loader, valid_data_loader, test_data_loader
+    
+        
+    #features shape: [batch_size, num_atoms, num_timesteps, num_features]
+    features_train = np.load('data/gordon/preprocessed/' + suffix + '/examples_train.npy')
+    edges_train = np.load('data/gordon/preprocessed/' + suffix + '/labels_train.npy')
+
+    features_valid = np.load('data/gordon/preprocessed/' + suffix + '/examples_valid.npy')
+    edges_valid = np.load('data/gordon/preprocessed/' + suffix + '/labels_valid.npy')
+
+    features_test = np.load('data/gordon/preprocessed/' + suffix + '/examples_test.npy')
+    edges_test = np.load('data/gordon/preprocessed/' + suffix + '/labels_test.npy')
+        
+    num_atoms = features_train.shape[1]
+        
+    if normalize:
+        if suffix == "acc":
+            features_max = features_train.max()
+            features_min = features_train.min()
+            features_train = (features_train - features_min) * 2 / (features_max - features_min) - 1
+            features_valid = (features_valid - features_min) * 2 / (features_max - features_min) - 1
+            features_test = (features_test - features_min) * 2 / (features_max - features_min) - 1
+            
+        elif suffix=="orien":
+            features_train = np.cos(features_train/2)
+            features_valid = np.cos(features_valid/2)
+            features_test = np.cos(features_test/2)
+                
+    edges_train = np.reshape(edges_train, [-1, num_atoms ** 2])
+    edges_train = np.array((edges_train + 1) / 2, dtype=np.int64)
+    edges_valid = np.reshape(edges_valid, [-1, num_atoms ** 2])
+    edges_valid = np.array((edges_valid + 1) / 2, dtype=np.int64)
+    edges_test = np.reshape(edges_test, [-1, num_atoms ** 2])
+    edges_test = np.array((edges_test + 1) / 2, dtype=np.int64)
+        
+    features_train = torch.FloatTensor(features_train)
+    edges_train = torch.LongTensor(edges_train)
+    features_valid = torch.FloatTensor(features_valid)
+    edges_valid = torch.LongTensor(edges_valid)
+    features_test = torch.FloatTensor(features_test)
+    edges_test = torch.LongTensor(edges_test)
+        
+    # Exclude self edges
+    off_diag_idx = np.ravel_multi_index(
+            np.where(np.ones((num_atoms, num_atoms)) - np.eye(num_atoms)),
+            [num_atoms, num_atoms])
+    edges_train = edges_train[:, off_diag_idx]
+    edges_valid = edges_valid[:, off_diag_idx]
+    edges_test = edges_test[:, off_diag_idx]
+        
+        
+    #create mask for training and validation data
+    edges_train_masked = edges_train.clone()
+    edges_train_masked[edges_train_masked==0]=-1
+    edges_valid_masked = edges_valid.clone()
+    edges_valid_masked[edges_valid_masked==0]=-1
+    mask_train = np.random.choice(a=[1,0], size=edges_train_masked.size(),
+                           p=[label_rate, 1-label_rate])
+    mask_valid = np.random.choice(a=[1,0], size=edges_valid_masked.size(),
+                           p=[label_rate, 1-label_rate])
+    mask_train = torch.LongTensor(mask_train)
+    mask_valid = torch.LongTensor(mask_valid)
+    edges_train_masked = edges_train_masked*mask_train
+    edges_valid_masked = edges_valid_masked*mask_valid
+        
+        
+    edges_train_stack = torch.stack([edges_train, edges_train_masked], dim=-1)
+    edges_valid_stack = torch.stack([edges_valid, edges_valid_masked], dim=-1)
+        
+    train_data = TensorDataset(features_train, edges_train_stack)
+    valid_data = TensorDataset(features_valid, edges_valid_stack)
+    test_data = TensorDataset(features_test, edges_test)
+        
+    train_data_loader = DataLoader(train_data, batch_size=batch_size)
+    valid_data_loader = DataLoader(valid_data, batch_size=batch_size)
+    test_data_loader = DataLoader(test_data, batch_size=batch_size)
+        
+    train_loader_path = os.path.join(save_folder, "train_data_loader_"+suffix+".pth")
+    valid_loader_path = os.path.join(save_folder, "valid_data_loader_"+suffix+".pth")
+    test_loader_path = os.path.join(save_folder, "test_data_loader_"+suffix+".pth")
+        
+    #save dataloader 
+    torch.save(train_data_loader, train_loader_path)
+    torch.save(valid_data_loader, valid_loader_path)
+    torch.save(test_data_loader, test_loader_path)
+        
+    return train_data_loader, valid_data_loader, test_data_loader
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+                
+        
+                
+        
+        
+        
+        
+    
+
+
+
+
     
     
