@@ -440,6 +440,8 @@ class RNNDecoder(nn.Module):
         teaching = np.random.choice([1,0], size=num_timesteps, p=[teaching_rate, 1-teaching_rate])
         #teaching signal: whether to use teaching force
         noise = torch.randn(latents.size(0), latents.size(1), self.n_noise)
+        if latents.is_cuda:
+            noise = noise.cuda()
         #shape: [batch_size, num_atoms, n_noise]
         hidden = torch.cat([latents, noise], dim=-1)
         #shape: [batch_size,num_atoms, n_hid]
