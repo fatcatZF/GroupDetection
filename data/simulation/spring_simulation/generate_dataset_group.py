@@ -16,7 +16,7 @@ parser.add_argument("--dynamic", action="store_true", default=False, help="wheth
 parser.add_argument("--age-factor", type=int, default=0.0001, help="age factor")
 parser.add_argument("--ga-values-factor", type=int, default=5, help="group assignment value factor")
 parser.add_argument("--K", type=float, default=3.0, help="K")
-parser.add_argument("--b", type=float, default= 0.001, help="b")
+parser.add_argument("--b", type=float, default= 0.01, help="b")
 
 args = parser.parse_args()
 print(args)
