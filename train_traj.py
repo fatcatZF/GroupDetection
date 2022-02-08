@@ -50,8 +50,8 @@ parser.add_argument('--depth', type=int, default=3,
 parser.add_argument("--kernel-size", type=int, default=5, 
                     help="kernel size of CNN")
 
-parser.add_argument("--n-hid", type=int, default=64,
-                    help="hidden dimension of RNN")
+parser.add_argument("--n-noise", type=int, default=16,
+                    help="noise dimension of RNN")
 parser.add_argument("--rnn-type", type=str, default="gru",
                     help="rnn cell type in the decoder")
 parser.add_argument("--reverse", action="store_true", default=False,
@@ -141,7 +141,7 @@ rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
 
 encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
                          args.kernel_size, args.depth, args.n_latent, args.model_increment)
-decoder = RNNDecoder(args.n_latent, args.dims, args.n_emb, args.n_hid,
+decoder = RNNDecoder(args.n_latent, args.dims, args.n_emb, args.n_noise,
                      args.rnn_type, args.reverse)
 
 
@@ -179,7 +179,7 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
 def train(epoch, best_val_loss, initial_teaching_rate):
     t = time.time()
     nll_train = []
-    kl_train = []
+    #kl_train = []
     mse_train = []
     co_train = []
     
@@ -201,32 +201,32 @@ def train(epoch, best_val_loss, initial_teaching_rate):
                             args.min_teaching)
         
         optimizer.zero_grad()
-        mu, sigma = encoder(data, rel_rec_sl, rel_send_sl)
+        Z = encoder(data, rel_rec_sl, rel_send_sl)
         
         #latent variables
-        Z = mu+sigma*torch.randn_like(sigma)
+        #Z = mu+sigma*torch.randn_like(sigma)
         #shape: [batch_size, num_atom, n_latent]
-        loss_co = args.gc_weight*(F.elu(torch.cdist(Z,Z, p=2))*relations_masked).mean()
+        loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*relations_masked).mean()
                        
        
         output = decoder(Z, data, teaching_rate)
         loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
         loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
-        loss_kl = kl_gaussian(mu, sigma)
-        loss = loss_nll+loss_kl+loss_co
+        #loss_kl = kl_gaussian(mu, sigma)
+        loss = loss_nll+loss_co
         loss.backward()
         optimizer.step()
         scheduler.step()
         
         mse_train.append(loss_mse.item())
         nll_train.append(loss_nll.item())
-        kl_train.append(loss_kl.item())
+        #kl_train.append(loss_kl.item())
         co_train.append(loss_co.item())
         
     
     nll_val = []
-    kl_val = []
+    #kl_val = []
     mse_val = []
     loss_val = []
     co_val = []
@@ -245,21 +245,21 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             
         
         with torch.no_grad():
-            mu, sigma = encoder(data, rel_rec_sl, rel_send_sl)
-            Z = mu+sigma*torch.randn_like(sigma)
-            loss_co = args.gc_weight*(F.elu(torch.cdist(Z,Z, p=2))*relations_masked).mean()
+            Z = encoder(data, rel_rec_sl, rel_send_sl)
+            #Z = mu+sigma*torch.randn_like(sigma)
+            loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*relations_masked).mean()
             
-            loss_kl = kl_gaussian(mu, sigma)
+            #loss_kl = kl_gaussian(mu, sigma)
             
             output = decoder(Z, data, teaching_rate=1)
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
-            loss = loss_nll+loss_kl+loss_co
+            loss = loss_nll+loss_co
                 
             mse_val.append(loss_mse.item())
             nll_val.append(loss_nll.item())
-            kl_val.append(loss_kl.item())
+            #kl_val.append(loss_kl.item())
             loss_val.append(loss.item())
             co_val.append(loss_co.item())
             
@@ -267,11 +267,11 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     
     print('Epoch: {:04d}'.format(epoch+1),
           'nll_train: {:.10f}'.format(np.mean(nll_train)),
-          'kl_train: {:.10f}'.format(np.mean(kl_train)),
+          #'kl_train: {:.10f}'.format(np.mean(kl_train)),
           'mse_train: {:.10f}'.format(np.mean(mse_train)),
           'co_train: {:.10f}'.format(np.mean(co_train)),
           'nll_val: {:.10f}'.format(np.mean(nll_val)),
-          'kl_val: {:.10f}'.format(np.mean(kl_val)),
+          #'kl_val: {:.10f}'.format(np.mean(kl_val)),
           'mse_val: {:.10f}'.format(np.mean(mse_val)),
           'co_val: {:.10f}'.format(np.mean(co_val)),
           "teaching rate {:.10f}".format(teaching_rate),
@@ -283,11 +283,11 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         print('Best model so far, saving...')
         print('Epoch: {:04d}'.format(epoch+1),
               'nll_train: {:.10f}'.format(np.mean(nll_train)),
-              'kl_train: {:.10f}'.format(np.mean(kl_train)),
+              #'kl_train: {:.10f}'.format(np.mean(kl_train)),
               'mse_train: {:.10f}'.format(np.mean(mse_train)),
               'co_train: {:.10f}'.format(np.mean(co_train)),
               'nll_val: {:.10f}'.format(np.mean(nll_val)),
-              'kl_val: {:.10f}'.format(np.mean(kl_val)),
+              #'kl_val: {:.10f}'.format(np.mean(kl_val)),
               'mse_val: {:.10f}'.format(np.mean(mse_val)),
               'co_val: {:.10f}'.format(np.mean(co_val)),
               "teaching rate {:.10f}".format(teaching_rate),
@@ -299,7 +299,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
 
 def test():
     nll_test = []
-    kl_test = []
+    #kl_test = []
     mse_test = []
     loss_test = []
     
@@ -313,8 +313,8 @@ def test():
             
         data = data.float()
         with torch.no_grad():
-            mu, sigma = encoder(data, rel_rec_sl, rel_send_sl)
-            Z = mu+sigma*torch.randn_like(sigma)
+            Z = encoder(data, rel_rec_sl, rel_send_sl)
+            #Z = mu+sigma*torch.randn_like(sigma)
             
             loss_kl = kl_gaussian(mu, sigma)
             
@@ -322,11 +322,11 @@ def test():
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
-            loss = loss_nll+loss_kl
+            loss = loss_nll
                 
             mse_test.append(loss_mse.item())
             nll_test.append(loss_nll.item())
-            kl_test.append(loss_kl.item())
+            #kl_test.append(loss_kl.item())
             loss_test.append(loss.item())
             
     print('--------------------------------')
@@ -334,7 +334,7 @@ def test():
     print('--------------------------------')
     print(
          'nll_test: {:.10f}'.format(np.mean(nll_test)),
-         'kl_test: {:.10f}'.format(np.mean(kl_test)),
+         #'kl_test: {:.10f}'.format(np.mean(kl_test)),
          'mse_test: {:.10f}'.format(np.mean(mse_test)),)
         
     

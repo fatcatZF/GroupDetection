@@ -289,8 +289,9 @@ class GraphTCNEncoder(nn.Module):
         self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
         self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
             
-        self.fc_mu = nn.Linear(c_out, n_out)
-        self.fc_sigma = nn.Linear(c_out, n_out)
+        #self.fc_mu = nn.Linear(c_out, n_out)
+        #self.fc_sigma = nn.Linear(c_out, n_out)
+        self.fc_h = nn.Linear(c_out, n_out)
         self.model_increment=model_increment
             
             
@@ -318,11 +319,12 @@ class GraphTCNEncoder(nn.Module):
         pred_attention = pred_attention.view(inputs.size(0), inputs.size(1), -1)
         #shape: [batch_size, num_atoms, c_out]
         
-        mu = self.fc_mu(pred_attention)
-        logvar = self.fc_sigma(pred_attention)
-        sigma = torch.exp(0.5*logvar)
+        #mu = self.fc_mu(pred_attention)
+        #logvar = self.fc_sigma(pred_attention)
+        #sigma = torch.exp(0.5*logvar)
+        h = torch.tanh(self.fc_h(pred_attention))
         
-        return mu, sigma
+        return h
         
         
         
@@ -405,25 +407,27 @@ class LSTMCell(nn.Module):
 
 
 class RNNDecoder(nn.Module):
-    def __init__(self, n_latent, n_in, n_emb, n_hid, rnn_type="GRU", 
+    def __init__(self, n_latent, n_in, n_emb, n_noise, rnn_type="GRU", 
                  reverse = False):
         """
         args:
           n_latent: dimensions of latent variables
           n_in: dimensions of input
           n_emb: dimensions of embedding 
-          n_hid: dimensions of hidden
+          n_noise: dimensions of noise
           reverse: output reverse sequence
         """
         super(RNNDecoder, self).__init__()
-        self.fc_latent = nn.Linear(n_latent, n_hid)
+        #self.fc_latent = nn.Linear(n_latent, n_hid)
         self.fc_embed = nn.Linear(n_in, n_emb)
-        self.fc_out = nn.Linear(n_hid, n_in)
+        self.fc_out = nn.Linear(n_latent+n_noise, n_in)
         if rnn_type.lower() == "gru":
-            self.rnn_cell = GRUCell(n_emb, n_hid)
+            self.rnn_cell = GRUCell(n_emb, n_latent+n_noise)
         else:
-            self.rnn_cell = LSTMCell(n_emb, n_hid)
+            self.rnn_cell = LSTMCell(n_emb, n_latent+n_noise)
         self.reverse = reverse
+        self.n_hid = n_latent+n_noise
+        self.n_noise = n_noise
       
     def forward(self, latents, inputs, teaching_rate=0.):
         """
@@ -435,7 +439,9 @@ class RNNDecoder(nn.Module):
         num_timesteps = inputs.size(2)
         teaching = np.random.choice([1,0], size=num_timesteps, p=[teaching_rate, 1-teaching_rate])
         #teaching signal: whether to use teaching force
-        hidden = torch.tanh(self.fc_latent(latents)) #map latent to initial hidden
+        noise = torch.randn(latents.size(0), latents.size(1), self.n_noise)
+        #shape: [batch_size, num_atoms, n_noise]
+        hidden = torch.cat([latents, noise], dim=-1)
         #shape: [batch_size,num_atoms, n_hid]
         hidden = hidden.view(hidden.size(0)*hidden.size(1),-1)
         if isinstance(self.rnn_cell, LSTMCell):
