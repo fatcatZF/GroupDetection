@@ -316,7 +316,7 @@ def test():
             Z = encoder(data, rel_rec_sl, rel_send_sl)
             #Z = mu+sigma*torch.randn_like(sigma)
             
-            loss_kl = kl_gaussian(mu, sigma)
+            #loss_kl = kl_gaussian(mu, sigma)
             
             output = decoder(Z, data, teaching_rate=1)
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
