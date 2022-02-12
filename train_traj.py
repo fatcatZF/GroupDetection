@@ -27,7 +27,7 @@ parser.add_argument("--no-seed", action="store_true", default=False,
 
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of epochs to train.')
-parser.add_argument('--batch-size', type=int, default=64,
+parser.add_argument('--batch-size', type=int, default=128,
                     help='Number of samples per batch.')
 parser.add_argument('--lr', type=float, default=1e-2,
                     help='Initial learning rate.')
@@ -57,11 +57,11 @@ parser.add_argument("--rnn-type", type=str, default="gru",
 parser.add_argument("--reverse", action="store_true", default=False,
                     help="whether reverse output of rnn decoder.")
 
-parser.add_argument("--teaching-rate", type=float, default=0.,
+parser.add_argument("--teaching-rate", type=float, default=1.,
                     help="Initial Teaching rate.")
 parser.add_argument("--teaching-k", type=float, default=1e+3,
                     help="Teaching decay rate.")
-parser.add_argument("--min-teaching", type=float, default=0.,
+parser.add_argument("--min-teaching", type=float, default=1.,
                     help="Minimal Teaching rate")
 
 
@@ -305,6 +305,8 @@ def test():
     
     encoder.eval()
     decoder.eval()
+    encoder.load_state_dict(torch.load(encoder_file))
+    decoder.load_state_dict(torch.load(decoder_file))
     
     for batch_idx, (data, relations) in enumerate(test_loader):
         if args.cuda:

@@ -501,7 +501,7 @@ class ResCausalCNNEncoder(nn.Module):
         self.dropout_prob = do_prob
         self.factor = factor
         self.use_motion = use_motion
-        self.cnn = ResCausalCNN(n_in*2, n_hid, n_hid, kernel_size, depth, do_prob)
+        self.cnn = ResCausalCNN(n_in*3, n_hid, n_hid, kernel_size, depth, do_prob)
         self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
         self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
         self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)
@@ -540,6 +540,26 @@ class ResCausalCNNEncoder(nn.Module):
         
         return edges
     
+    def node2edgediff_temporal(self, inputs, rel_rec, rel_send):
+        x = inputs.view(inputs.size(0), inputs.size(1), -1)
+        #shape: [batch_size, num_atoms, num_timesteps*num_features]
+        
+        receivers = torch.matmul(rel_rec, x)
+        receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                   inputs.size(2), inputs.size(3))
+        #shape: [batch_size*num_edges, num_timesteps, num_features]
+        receivers = receivers.transpose(2,1)
+        #shape: [batch_size*num_edges, num_features, num_timesteps]
+        
+        senders = torch.matmul(rel_send, x)
+        senders = senders.view(inputs.size(0)*senders.size(1),
+                               inputs.size(2), inputs.size(3))
+        senders = senders.transpose(2,1)
+        edge_diffs = receivers-senders
+        #shape: [batch_size*num_edges, num_features, num_timesteps]
+        return edge_diffs
+        
+    
     def edge2node(self, x, rel_rec, rel_send):
         incoming = torch.matmul(rel_rec.t(), x)
         return incoming/incoming.size(1)
@@ -552,10 +572,19 @@ class ResCausalCNNEncoder(nn.Module):
     
     def forward(self, inputs, rel_rec, rel_send):
         #inputs shape: [batch_size, num_atoms, num_timesteps, num_dims]
+        inputs_origin = inputs
         if self.use_motion:
             inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
         edges = self.node2edge_temporal(inputs, rel_rec, rel_send)
         #shape: [batch_size*num_edges, 2*num_dims, num_timesteps]
+        edge_diffs = self.node2edgediff_temporal(inputs_origin, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, num_dims, num_timesteps]
+        if self.use_motion:
+            edge_diffs = edge_diffs[:,:,:-1]
+        
+        edges = torch.cat([edge_diffs, edges], dim=1)
+        #shape: [batch_size*num_edges, 3*num_dims, num_timesteps]
+        
         x = self.cnn(edges)
         x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
         x = self.mlp1(x) #[batch_size, num_edges, n_hid]

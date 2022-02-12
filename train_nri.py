@@ -88,12 +88,10 @@ parser.add_argument("--gc-weight", type=float, default=100.,
                     help="Group Contrasitive Weight")
 
 
-
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 args.factor = not args.no_factor
 print(args)
-
 
 
 if not args.no_seed:

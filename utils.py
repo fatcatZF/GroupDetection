@@ -191,19 +191,48 @@ def edge_accuracy(preds, target):
 def edge_precision(preds, target):
     """compute pairwise group/non-group recall"""
     _, preds = preds.max(-1)
-    group_precision = ((target[preds==1]==1).cpu().sum())/preds[preds==1].cpu().sum()
-    non_group_precision = ((target[preds==0]==0).cpu().sum())/(preds[preds==0]==0).cpu().sum()
-    return group_precision.item(), non_group_precision.item()
+    true_possitive = ((preds[target==1]==1).cpu().sum()).item()
+    total_possitive = ((preds[preds==1]).cpu().sum()).item()
+    if total_possitive==true_possitive:
+        group_precision = 1
+    true_negative = ((preds[target==0]==0).cpu().sum()).item()
+    total_negative = ((preds[preds==0]==0).cpu().sum()).item()
+    if total_negative==true_negative:
+        non_group_precision = 1
+    if total_possitive>0:
+        group_precision = true_possitive/total_possitive
+    if total_negative>0:
+        non_group_precision = true_negative/total_negative
+       
+    #group_precision = ((target[preds==1]==1).cpu().sum())/preds[preds==1].cpu().sum()
+    #non_group_precision = ((target[preds==0]==0).cpu().sum())/(preds[preds==0]==0).cpu().sum()
+    return group_precision, non_group_precision
     
     
 
 def edge_recall(preds, target):
     """compute pairwise group/non-group precision"""
     _,preds = preds.max(-1)
-    group_recall = ((preds[target==1]==1).cpu().sum())/(target[target==1]).cpu().sum()
-    non_group_recall = ((preds[target==0]==0).cpu().sum())/(target[target==0]==0).cpu().sum()
-    return group_recall, non_group_recall
+    retrived_possitive = ((preds[target==1]==1).cpu().sum()).item()
+    total_possitive = ((target[target==1]).cpu().sum()).item()
+    retrived_negative = ((preds[target==0]==0).cpu().sum()).item()
+    total_negative = ((target[target==0]==0).cpu().sum()).item()
     
+    if retrived_possitive==total_possitive:
+        group_recall = 1
+    if retrived_negative==total_negative:
+        non_group_recall = 1
+        
+    if total_possitive > 0:
+        group_recall = retrived_possitive/total_possitive
+    if total_negative > 0:
+        non_group_recall = retrived_negative/total_negative
+    
+    #group_recall = ((preds[target==1]==1).cpu().sum())/(target[target==1]).cpu().sum()
+    #non_group_recall = ((preds[target==0]==0).cpu().sum())/(target[target==0]==0).cpu().sum()
+    return group_recall, non_group_recall
+
+
     
 
 
