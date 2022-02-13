@@ -39,18 +39,18 @@ parser.add_argument('--n-heads', type=int, default=2,
 parser.add_argument("--model-increment", action="store_true", default=False,
                     help="whether model increments in the encoder.")
 
-parser.add_argument("--c-hidden", type=int, default=64,
+parser.add_argument("--c-hidden", type=int, default=48,
                     help="number of hidden kernels of CNN")
-parser.add_argument('--c-out', type=int, default=48,
+parser.add_argument('--c-out', type=int, default=32,
                     help='out channels of CNN')
-parser.add_argument('--n-latent', type=int, default=32,
+parser.add_argument('--n-latent', type=int, default=16,
                     help='latent dimension')
 parser.add_argument('--depth', type=int, default=3,
                     help='depth of Residual CNN Blocks')
 parser.add_argument("--kernel-size", type=int, default=5, 
                     help="kernel size of CNN")
 
-parser.add_argument("--n-noise", type=int, default=16,
+parser.add_argument("--n-noise", type=int, default=4,
                     help="noise dimension of RNN")
 parser.add_argument("--rnn-type", type=str, default="gru",
                     help="rnn cell type in the decoder")
