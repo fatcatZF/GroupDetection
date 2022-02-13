@@ -147,6 +147,12 @@ elif args.encoder=="rescnn":
                         do_prob=args.encoder_dropout, factor=args.factor,
                         use_motion=args.use_motion)
     
+elif args.encoder=="wavenet":
+    encoder = WavenetEncoder(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+    
+    
     
 #if args.decoder == 'mlp':
 decoder = MLPDecoder(n_in_node=args.dims,

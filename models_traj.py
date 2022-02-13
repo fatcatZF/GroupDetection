@@ -40,6 +40,18 @@ class CausalConv1d(nn.Module):
         self.padding = dilation*(kernel_size-1)
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size,
                           padding=self.padding, dilation=dilation)
+        self.init_weights()
+        
+        
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                n = m.kernel_size[0] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.bias.data.fill_(0.1)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
         
     def forward(self, x):
         """
@@ -179,16 +191,17 @@ class GATLayer(nn.Module):
     """
     Graph Attention Layer
     """
-    def __init__(self, n_in, n_emb):
+    def __init__(self, n_in, n_emb, model_increment=True):
         """
         args:
             n_in: number of node features
             n_emb: embedding dimensions
         """
         super(GATLayer, self).__init__()
-        self.fc_spatial_emb = nn.Linear(n_in, n_emb)#to embed spatial relations
+        self.fc_spatial_emb = nn.Linear(3*n_in, n_emb)#to embed spatial relations
         self.fc_node_emb = nn.Linear(n_in, n_emb) #to embed features of nodes
         self.fc_attention = nn.Linear(n_emb, 1)
+        self.model_increment = model_increment
         
         
     def forward(self, x, rel_rec, rel_send):
@@ -209,6 +222,30 @@ class GATLayer(nn.Module):
         
         nodes_embed = self.fc_node_emb(x)
         #shape: [batch_size, num_atoms, num_timesteps, n_emb]
+        
+        if self.model_increment:
+            #compute increment
+            x = x[:,:,1:,:]-x[:,:,:-1,:]
+            senders = torch.matmul(rel_send, x.view(x.size(0),x.size(1),-1))
+            senders = senders.view(senders.size(0), senders.size(1), x.size(2),x.size(3))
+            receivers = torch.matmul(rel_rec, x.view(x.size(0),x.size(1),-1))
+            receivers = senders.view(receivers.size(0), receivers.size(1), x.size(2),
+                          x.size(3))
+            rec_send = torch.cat([senders,receivers],dim=-1)
+            #shape: [batch_size, num_edges, num_timesteps-1, 2*num_features]
+            spatial_relations = spatial_relations[:,:,:-1,:]
+            spatial_relations = torch.cat([spatial_relations, rec_send], dim=-1)
+            #shape: [batch_size, num_edges, num_timesteps-1, 3*num_features]
+            nodes_embed = nodes_embed[:,:,:-1,:]
+            
+        else:
+            #rec_send = senders+receivers
+            rec_send = torch.cat([senders,receivers],dim=-1)
+            #shape: [batch_size, num_edges, num_timesteps, 2*num_features]
+            spatial_relations = torch.cat([spatial_relations, rec_send], dim=-1)
+            #shape: [batch_size, num_edges, num_timesteps, 3*num_features]
+            
+        
         spatial_embed = self.fc_spatial_emb(spatial_relations)
         #shape: [batch_size, num_edges, num_timesteps, n_emb]
         
@@ -241,11 +278,12 @@ class GATLayer(nn.Module):
 
 class EFGAT(nn.Module):
     """Multi-head attention with skip-connection"""
-    def __init__(self, n_in, n_emb, n_heads=2):
+    def __init__(self, n_in, n_emb, n_heads=2, model_increment=True):
         super(EFGAT, self).__init__()
         self.fc_skip = nn.Linear(n_in, n_heads*n_emb)
-        self.multi_gats = nn.ModuleList([GATLayer(n_in, n_emb) for i in range(n_heads)])
+        self.multi_gats = nn.ModuleList([GATLayer(n_in, n_emb, model_increment) for i in range(n_heads)])
         self.n_heads = n_heads
+        self.model_increment = model_increment
         
     def forward(self, x, rel_rec, rel_send):
         """
@@ -257,7 +295,8 @@ class EFGAT(nn.Module):
         attention = []
         x_skip = self.fc_skip(x) #shape: [batch_size, num_atoms, num_timesteps, n_heads*n_emb]
         x_skip = x_skip.permute(0,2,1,-1) #shape:[batch_size,num_timesteps,num_atoms, n_heads*n_emb]
-        
+        if self.model_increment:
+            x_skip = x_skip[:,:-1,:,:] #shape: [batch_size,num_timesteps-1,num_atoms, n_heads*n_emb]
         
         for i in range(self.n_heads):
             attention.append(self.multi_gats[i](x, rel_rec, rel_send))
@@ -276,7 +315,7 @@ class GraphTCNEncoder(nn.Module):
     def __init__(self, n_in=4, n_emb=16, n_heads=2 ,c_hidden=64, c_out=48, kernel_size=5,
                  depth=3, n_out=32, model_increment=False):
         super(GraphTCNEncoder, self).__init__()
-        self.efgat = EFGAT(n_in, n_emb, n_heads)
+        self.efgat = EFGAT(n_in, n_emb, n_heads, model_increment)
         
         res_layers = [] #residual convolutional layers
         for i in range(depth):
@@ -302,8 +341,8 @@ class GraphTCNEncoder(nn.Module):
             
         return: latents of trajectories of atoms
         """
-        if self.model_increment:
-            inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
+        #if self.model_increment:
+        #    inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
         x = self.efgat(inputs, rel_rec, rel_send) #shape: [batch_size, n_atoms, n_timesteps, n_heads*n_emb]
        
         x = x.reshape(x.size(0)*x.size(1),x.size(2),-1) #shape:[total_atoms, n_timesteps, n_heads*n_emb]
@@ -330,16 +369,6 @@ class GraphTCNEncoder(nn.Module):
         
         
         
-        
-        
-        
-    
-            
-            
-            
-            
-        
-
     
 
 

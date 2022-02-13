@@ -406,6 +406,27 @@ class CausalConv1d(nn.Module):
         return x[:,:,:-self.padding]            
     
     
+
+
+class GatedCausalConv1d(nn.Module):
+    """
+    Gated Causal Conv1d Layer
+    h_(l+1)=tanh(Wg*h_l)*sigmoid(Ws*h_l)
+    """
+    def __init__(self, in_channels, out_channels, kernel_size,
+                dilation):
+        super(GatedCausalConv1d, self).__init__()
+        self.convg = CausalConv1d(in_channels, out_channels, kernel_size,
+                                  dilation) #gate
+        self.convs = CausalConv1d(in_channels, out_channels, kernel_size,
+                                  dilation)
+        
+    def forward(self, x):
+        return torch.sigmoid(self.convg(x))*torch.tanh(self.convs(x))
+
+
+
+
                 
   
 
@@ -442,7 +463,29 @@ class ResCausalConvBlock(nn.Module):
         x = x+x_skip
         return F.leaky_relu(x)
         
+
         
+
+
+class GatedResCausalConvBlock(nn.Module):
+    """
+    Gated Residual Convolutional block
+    """     
+    def __init__(self, n_in, n_out, kernel_size, dilation):
+        super(GatedResCausalConvBlock, self).__init__()
+        self.conv1 = GatedCausalConv1d(n_in, n_out, kernel_size, dilation)
+        self.conv2 = GatedCausalConv1d(n_out, n_out, kernel_size, dilation*2)
+        self.bn1 = nn.BatchNorm1d(n_out)
+        self.bn2 = nn.BatchNorm1d(n_out)
+        self.skip_conv = CausalConv1d(n_in, n_out, 1, 1)
+        
+    def forward(self, x):
+        x_skip = self.skip_conv(x)
+        x = self.bn1(self.conv1(x))
+        x = self.bn2(self.conv2(x))
+        x = x+x_skip
+        return x
+
         
 
 
@@ -489,8 +532,50 @@ class ResCausalCNN(nn.Module):
         
         
 
-
-
+class GatedResCausalCNN(nn.Module):
+    def __init__(self, n_in, n_hid, n_out, kernel_size=5, depth=2, 
+                 do_prob=0.):
+        """
+        n_in: number of input channels
+        n_hid, n_out: number of output channels
+        """
+        super(GatedResCausalCNN, self).__init__()
+        self.pool = nn.MaxPool1d(kernel_size=2, stride=None, padding=0,
+                                dilation=1, return_indices=False, ceil_mode=False)
+        res_layers = []#residual convolutional layers
+        for i in range(depth):
+            in_channels = n_in if i==0 else n_hid
+            res_layers += [GatedResCausalConvBlock(in_channels, n_hid, kernel_size, 
+                                                   dilation=2**(2*i))]
+        self.res_blocks = torch.nn.Sequential(*res_layers)
+        self.conv_predict = nn.Conv1d(n_hid, n_out, kernel_size=1)
+        self.conv_attention = nn.Conv1d(n_hid,1, kernel_size=1)
+        self.dropout_prob = do_prob
+        self.init_weights()
+        
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                n = m.kernel_size[0] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                m.bias.data.fill_(0.1)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+                
+    def forward(self, inputs):
+        #inputs shape:[batch_size*num_edges, num_dims, num_timesteps]
+        x = self.res_blocks(inputs)
+        x = F.dropout(x, self.dropout_prob, training=self.training)
+        x = self.pool(x)
+        pred = self.conv_predict(x)
+        attention = F.softmax(self.conv_attention(x), dim=-1)
+        edge_prob = (pred * attention).mean(dim=2)
+        return edge_prob
+                
+    
+        
+    
 
         
         
@@ -597,9 +682,116 @@ class ResCausalCNNEncoder(nn.Module):
             x = torch.cat([x, x_skip], dim=2) #Skip connection
             x = self.mlp3(x)
             
-        return self.fc_out(x)        
+        return self.fc_out(x)     
     
     
+    
+class WavenetEncoder(nn.Module):
+    def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
+                factor=True, use_motion=False):
+        super(WavenetEncoder,self).__init__()
+        self.dropout_prob = do_prob
+        self.factor = factor
+        self.use_motion = use_motion
+        self.cnn = GatedResCausalCNN(n_in*3, n_hid, n_hid, kernel_size, depth, do_prob)
+        self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)
+        self.fc_out = nn.Linear(n_hid, n_out)
+        if self.factor:
+            print("Using factor graph ResCausalCNN encoder")
+        else:
+            print("Using ResCausalCNN encoder.")
+        self.init__weights()
+        
+    def init__weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.data.fill_(0.1)
+        
+    def node2edge_temporal(self, inputs, rel_rec, rel_send):
+        #Note: Assume that we have the same graph across all samples
+        x = inputs.view(inputs.size(0), inputs.size(1), -1)
+        #shape: [batch_size, num_atoms, num_timesteps*num_features]
+        
+        receivers = torch.matmul(rel_rec, x)
+        receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                   inputs.size(2), inputs.size(3))
+        #shape: [batch_size*num_edges, num_timesteps, num_features]
+        receivers = receivers.transpose(2,1)
+        #shape: [batch_size*num_edges, num_features, num_timesteps]
+        
+        senders = torch.matmul(rel_send, x)
+        senders = senders.view(inputs.size(0)*senders.size(1),
+                               inputs.size(2), inputs.size(3))
+        senders = senders.transpose(2,1)
+        
+        edges = torch.cat([senders, receivers], dim=1)
+        #shape: [batch_size*num_edges, 2*num_features, num_timesteps]
+        
+        return edges
+    
+    def node2edgediff_temporal(self, inputs, rel_rec, rel_send):
+        x = inputs.view(inputs.size(0), inputs.size(1), -1)
+        #shape: [batch_size, num_atoms, num_timesteps*num_features]
+        
+        receivers = torch.matmul(rel_rec, x)
+        receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                   inputs.size(2), inputs.size(3))
+        #shape: [batch_size*num_edges, num_timesteps, num_features]
+        receivers = receivers.transpose(2,1)
+        #shape: [batch_size*num_edges, num_features, num_timesteps]
+        
+        senders = torch.matmul(rel_send, x)
+        senders = senders.view(inputs.size(0)*senders.size(1),
+                               inputs.size(2), inputs.size(3))
+        senders = senders.transpose(2,1)
+        edge_diffs = receivers-senders
+        #shape: [batch_size*num_edges, num_features, num_timesteps]
+        return edge_diffs
+        
+    
+    def edge2node(self, x, rel_rec, rel_send):
+        incoming = torch.matmul(rel_rec.t(), x)
+        return incoming/incoming.size(1)
+    
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        edges = torch.cat([senders, receivers], dim=2)
+        return edges
+    
+    def forward(self, inputs, rel_rec, rel_send):
+        #inputs shape: [batch_size, num_atoms, num_timesteps, num_dims]
+        inputs_origin = inputs
+        if self.use_motion:
+            inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
+        edges = self.node2edge_temporal(inputs, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, 2*num_dims, num_timesteps]
+        edge_diffs = self.node2edgediff_temporal(inputs_origin, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, num_dims, num_timesteps]
+        if self.use_motion:
+            edge_diffs = edge_diffs[:,:,:-1]
+        
+        edges = torch.cat([edge_diffs, edges], dim=1)
+        #shape: [batch_size*num_edges, 3*num_dims, num_timesteps]
+        
+        x = self.cnn(edges)
+        x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
+        x = self.mlp1(x) #[batch_size, num_edges, n_hid]
+        x_skip = x
+        
+        if self.factor:
+            x = self.edge2node(x, rel_rec, rel_send)
+            x = self.mlp2(x)
+            x = self.node2edge(x, rel_rec, rel_send)
+            x = torch.cat([x, x_skip], dim=2) #Skip connection
+            x = self.mlp3(x)
+            
+        return self.fc_out(x)   
+    
+   
 
         
     
