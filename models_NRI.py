@@ -699,9 +699,9 @@ class WavenetEncoder(nn.Module):
         self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)
         self.fc_out = nn.Linear(n_hid, n_out)
         if self.factor:
-            print("Using factor graph ResCausalCNN encoder")
+            print("Using factor graph Wavenet encoder")
         else:
-            print("Using ResCausalCNN encoder.")
+            print("Using Wavenet encoder.")
         self.init__weights()
         
     def init__weights(self):
