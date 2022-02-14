@@ -189,6 +189,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         example = examples_train[idx]
         label = labels_train[idx]
         label_masked = labels_train_masked[idx]
+        label_masked = label_masked.float()
         #add batch size
         example = example.unsqueeze(0)
         label = label.unsqueeze(0)
@@ -260,6 +261,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             example = examples_valid[idx]
             label = labels_valid[idx]
             label_masked = labels_valid_masked[idx]
+            label_masked = label_masked.float()
             #add batch size
             example = example.unsqueeze(0)
             label = label.unsqueeze(0)
