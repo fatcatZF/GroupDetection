@@ -184,6 +184,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     #kl_train = []
     mse_train = []
     co_train = []
+    sc_train = []
     
     encoder.train()
     decoder.train()
@@ -227,6 +228,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         nll_train.append(loss_nll.item())
         #kl_train.append(loss_kl.item())
         co_train.append(loss_co.item())
+        sc_train.append(loss_sc.item())
         
     
     nll_val = []
@@ -234,6 +236,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     mse_val = []
     loss_val = []
     co_val = []
+    sc_val = []
     
     encoder.eval()
     decoder.eval()
@@ -267,6 +270,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             #kl_val.append(loss_kl.item())
             loss_val.append(loss.item())
             co_val.append(loss_co.item())
+            sc_val.append(loss_sc.item())
             
             
     
@@ -275,10 +279,12 @@ def train(epoch, best_val_loss, initial_teaching_rate):
           #'kl_train: {:.10f}'.format(np.mean(kl_train)),
           'mse_train: {:.10f}'.format(np.mean(mse_train)),
           'co_train: {:.10f}'.format(np.mean(co_train)),
+          "sc_train: {:.10f}".format(np.mean(sc_train)),
           'nll_val: {:.10f}'.format(np.mean(nll_val)),
           #'kl_val: {:.10f}'.format(np.mean(kl_val)),
           'mse_val: {:.10f}'.format(np.mean(mse_val)),
           'co_val: {:.10f}'.format(np.mean(co_val)),
+          "sc_val: {:.10f}".format(np.mean(sc_val)),
           "teaching rate {:.10f}".format(teaching_rate),
           'time: {:.4f}s'.format(time.time() - t))
     
@@ -291,10 +297,12 @@ def train(epoch, best_val_loss, initial_teaching_rate):
               #'kl_train: {:.10f}'.format(np.mean(kl_train)),
               'mse_train: {:.10f}'.format(np.mean(mse_train)),
               'co_train: {:.10f}'.format(np.mean(co_train)),
+              "sc_train: {:.10f}".format(np.mean(sc_train)),
               'nll_val: {:.10f}'.format(np.mean(nll_val)),
               #'kl_val: {:.10f}'.format(np.mean(kl_val)),
               'mse_val: {:.10f}'.format(np.mean(mse_val)),
               'co_val: {:.10f}'.format(np.mean(co_val)),
+              "sc_val: {:.10f}".format(np.mean(sc_val)),
               "teaching rate {:.10f}".format(teaching_rate),
               'time: {:.4f}s'.format(time.time() - t), file=log)
         log.flush()
