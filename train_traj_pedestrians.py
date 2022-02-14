@@ -358,7 +358,7 @@ def test():
             label = label.unsqueeze(0)
             num_atoms = example.size(1) #get number of atoms
             rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
-            rel_rec_sl, rel_send_sl = create_edgeNode_relation(args.num_atoms, self_loops=True)
+            rel_rec_sl, rel_send_sl = create_edgeNode_relation(num_atoms, self_loops=True)
             if args.cuda:
                 example = example.cuda()
                 label = label.cuda()
@@ -370,8 +370,12 @@ def test():
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             
             output = decoder(Z, example, teaching_rate=1)
-            loss_nll = nll_gaussian(output[:,:,1:,:], example[:,:,1:,:], args.var)
-            loss_mse = F.mse_loss(output[:,:,1:,:], example[:,:,1:,:])
+            if args.reverse:
+                loss_nll = nll_gaussian(output[:,:,:-1,:], example[:,:,:-1,:], args.var)
+                loss_mse = F.mse_loss(output[:,:,:-1,:], example[:,:,:-1,:])
+            else:
+                loss_nll = nll_gaussian(output[:,:,1:,:], example[:,:,1:,:], args.var)
+                loss_mse = F.mse_loss(output[:,:,1:,:], example[:,:,1:,:])
             
             loss = loss_nll
             
