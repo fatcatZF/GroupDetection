@@ -88,7 +88,9 @@ parser.add_argument('--var', type=float, default=5e-5,
 
 
 parser.add_argument("--gc-weight", type=float, default=100,
-                    help="Group Contrasitive Weight")
+                    help="Group Contrasitive Weight.")
+parser.add_argument("--sc-weight", type=float, default=100,
+                    help="Sparse Constraint Weight.")
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -202,11 +204,13 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         
         optimizer.zero_grad()
         Z = encoder(data, rel_rec_sl, rel_send_sl)
+        #Shape: [batch_size, num_atoms, n_latent]
         
         #latent variables
         #Z = mu+sigma*torch.randn_like(sigma)
         #shape: [batch_size, num_atom, n_latent]
         loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*relations_masked).mean()
+        loss_sc = args.sc_weight*(torch.norm(Z, p=1))/(Z.size(0)*Z.size(1))
                        
        
         output = decoder(Z, data, teaching_rate)
@@ -214,7 +218,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
         #loss_kl = kl_gaussian(mu, sigma)
-        loss = loss_nll+loss_co
+        loss = loss_nll+loss_co+loss_sc
         loss.backward()
         optimizer.step()
         scheduler.step()
@@ -248,6 +252,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             Z = encoder(data, rel_rec_sl, rel_send_sl)
             #Z = mu+sigma*torch.randn_like(sigma)
             loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*relations_masked).mean()
+            loss_sc = args.sc_weight*(torch.norm(Z, p=1))/(Z.size(0)*Z.size(1))
             
             #loss_kl = kl_gaussian(mu, sigma)
             
@@ -255,7 +260,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
-            loss = loss_nll+loss_co
+            loss = loss_nll+loss_co+loss_sc
                 
             mse_val.append(loss_mse.item())
             nll_val.append(loss_nll.item())
