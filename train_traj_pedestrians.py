@@ -206,8 +206,9 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         
         example = example.float()
         
-        teaching_rate = max((args.teaching_k/(args.teaching_k+math.exp(batch_idx/args.teaching_k)))*initial_teaching_rate,
-                            args.min_teaching)
+        #teaching_rate = max((args.teaching_k/(args.teaching_k+math.exp(batch_idx/args.teaching_k)))*initial_teaching_rate,
+        #                    args.min_teaching)
+        teaching_rate = 1.
         
         Z = encoder(example, rel_rec_sl, rel_send_sl)
         #shape: [batch_size, num_atoms, n_latent]
@@ -269,7 +270,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
             
             
-            output = decoder(Z, example, teaching_rate=1)
+            output = decoder(Z, example, teaching_rate=1.)
             loss_nll = nll_gaussian(output[:,:,1:,:], example[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], example[:,:,1:,:])
             
