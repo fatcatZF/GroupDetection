@@ -213,7 +213,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         Z = encoder(example, rel_rec_sl, rel_send_sl)
         #shape: [batch_size, num_atoms, n_latent]
         
-        loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*relations_masked).mean()
+        loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*label_masked).mean()
         loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
         
         output = decoder(Z, example, teaching_rate)
@@ -266,7 +266,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             example = example.float()
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             #Z = mu+sigma*torch.randn_like(sigma)
-            loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*relations_masked).mean()
+            loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*label_masked).mean()
             loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
             
             
