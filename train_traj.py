@@ -39,11 +39,11 @@ parser.add_argument('--n-heads', type=int, default=2,
 parser.add_argument("--model-increment", action="store_true", default=False,
                     help="whether model increments in the encoder.")
 
-parser.add_argument("--c-hidden", type=int, default=48,
+parser.add_argument("--c-hidden", type=int, default=64,
                     help="number of hidden kernels of CNN")
-parser.add_argument('--c-out', type=int, default=32,
+parser.add_argument('--c-out', type=int, default=48,
                     help='out channels of CNN')
-parser.add_argument('--n-latent', type=int, default=24,
+parser.add_argument('--n-latent', type=int, default=32,
                     help='latent dimension')
 parser.add_argument('--depth', type=int, default=3,
                     help='depth of Residual CNN Blocks')
