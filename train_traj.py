@@ -39,6 +39,9 @@ parser.add_argument('--n-heads', type=int, default=2,
 parser.add_argument("--model-increment", action="store_true", default=False,
                     help="whether model increments in the encoder.")
 
+parser.add_argument("--encoder", type=str, default="gtcn",
+                    help="Type of encoder.")
+
 parser.add_argument("--c-hidden", type=int, default=64,
                     help="number of hidden kernels of CNN")
 parser.add_argument('--c-out', type=int, default=48,
@@ -141,8 +144,13 @@ rel_rec_sl, rel_send_sl = create_edgeNode_relation(args.num_atoms, self_loops=Tr
 rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
 
 
-encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
+
+if args.encoder=="gtcn":
+    encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
                          args.kernel_size, args.depth, args.n_latent, args.model_increment)
+else:
+    encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)    
+
 decoder = RNNDecoder(args.n_latent, args.dims, args.n_emb, args.n_noise,
                      args.rnn_type, args.reverse)
 

@@ -367,12 +367,34 @@ class GraphTCNEncoder(nn.Module):
         
         return h
         
-        
-        
-        
-        
-    
+ 
 
+#LSTM baseline    
+class LSTMEncoder(nn.Module):
+    """LSTM Encoder"""
+    def __init__(self, n_in, n_emb=16, n_h=32):
+        super(LSTMEncoder, self).__init__()
+        self.fc_emb = nn.Linear(n_in, n_emb)
+        self.lstm_cell = LSTMCell(n_emb, n_h)
+        
+    def forward(self, inputs, rel_rec=None, rel_send=None):
+        """
+        args:
+            inputs: [batch_size, num_atoms, num_timesteps, n_in]
+            
+        return: latents of trajectories of atoms
+        """
+        batch_size = inputs.size(0)
+        num_atoms = inputs.size(1)
+        num_timesteps = inputs.size(2)
+        hc = None
+        for i in range(num_timesteps):
+            inputs_i = inputs[:,:,i,:]
+            inputs_i = self.fc_emb(inputs_i)
+            h,c = self.lstm_cell(inputs_i, hc)
+            hc = (h,c)
+        h = h.view(batch_size, num_atoms, -1)
+        return h
 
 
     
