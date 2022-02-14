@@ -195,7 +195,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         label_masked = label_masked.unsqueeze(0)
         num_atoms = example.size(1) #get number of atoms
         rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
-        rel_rec_sl, rel_send_sl = create_edgeNode_relation(args.num_atoms, self_loops=True)
+        rel_rec_sl, rel_send_sl = create_edgeNode_relation(num_atoms, self_loops=True)
         
         if args.cuda:
             example = example.cuda()
@@ -255,7 +255,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             label_masked = label_masked.unsqueeze(0)
             num_atoms = example.size(1) #get number of atoms
             rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
-            rel_rec_sl, rel_send_sl = create_edgeNode_relation(args.num_atoms, self_loops=True)
+            rel_rec_sl, rel_send_sl = create_edgeNode_relation(num_atoms, self_loops=True)
             if args.cuda:
                 example = example.cuda()
                 label = label.cuda()
