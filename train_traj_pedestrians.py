@@ -362,7 +362,6 @@ def test():
             if args.cuda:
                 example = example.cuda()
                 label = label.cuda()
-                label_masked = label_masked.cuda()
                 rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
                 rel_rec_sl, rel_send_sl = rel_rec_sl.cuda(), rel_send_sl.cuda()
             
