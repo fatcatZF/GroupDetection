@@ -422,6 +422,8 @@ class GRUCell(nn.Module):
         
         if hidden is None:
             hidden = torch.zeros(x.size(0),self.n_hid)
+            if inputs.is_cuda:
+                hidden = hidden.cuda()
             
         x = self.gru_cell(x, hidden) #shape:[total_atoms, n_hid]
     
@@ -451,6 +453,9 @@ class LSTMCell(nn.Module):
         if hc is None:
             hidden = torch.zeros(x.size(0),self.n_hid)
             cell = torch.zeros_like(hidden)
+            if inputs.is_cuda:
+                hidden = hidden.cuda()
+                cell = cell.cuda()
             hc = (hidden, cell)
         h, c = self.lstm_cell(x, hc)
     
