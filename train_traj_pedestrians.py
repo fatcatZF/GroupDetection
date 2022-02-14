@@ -212,8 +212,11 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         
         Z = encoder(example, rel_rec_sl, rel_send_sl)
         #shape: [batch_size, num_atoms, n_latent]
-        print("label_masked size: ", label_masked.size())
-        print("Z size: ", Z.size())
+        #print("label_masked size: ", label_masked.size())
+        #print("Z size: ", Z.size())
+        label_masked = torch.diag_embed(label_masked)
+        #size: [batch_size, num_edges, num_edges]
+        label_masked = torch.matmul(rel_send.t(), torch.matmul(label_masked, rel_rec))
         
         loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*label_masked).mean()
         loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
@@ -273,6 +276,10 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             example = example.float()
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             #Z = mu+sigma*torch.randn_like(sigma)
+            label_masked = torch.diag_embed(label_masked)
+            #size: [batch_size, num_edges, num_edges]
+            label_masked = torch.matmul(rel_send.t(), torch.matmul(label_masked, rel_rec))
+            
             loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*label_masked).mean()
             loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
             
