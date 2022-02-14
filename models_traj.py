@@ -362,7 +362,8 @@ class GraphTCNEncoder(nn.Module):
         #mu = self.fc_mu(pred_attention)
         #logvar = self.fc_sigma(pred_attention)
         #sigma = torch.exp(0.5*logvar)
-        h = torch.tanh(self.fc_h(pred_attention))
+        #h = torch.tanh(self.fc_h(pred_attention))
+        h = F.softsign(self.fc_h(pred_attention))
         
         return h
         
