@@ -215,8 +215,12 @@ def train(epoch, best_val_loss, initial_teaching_rate):
                        
        
         output = decoder(Z, data, teaching_rate)
-        loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
-        loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
+        if args.reverse:
+            loss_nll = nll_gaussian(output[:,:,:-1,:], data[:,:,:-1,:], args.var)
+            loss_mse = F.mse_loss(output[:,:,:-1,:], data[:,:,:-1,:])
+        else:
+            loss_nll = nll_gaussian(output[:,:,1:,:], data[:,:,1:,:], args.var)
+            loss_mse = F.mse_loss(output[:,:,1:,:], data[:,:,1:,:])
             
         #loss_kl = kl_gaussian(mu, sigma)
         loss = loss_nll+loss_co+loss_sc
