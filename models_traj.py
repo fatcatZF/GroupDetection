@@ -338,8 +338,8 @@ class TCNEncoder(nn.Module):
         """
         batch_size = inputs.size(0)
         n_atoms = inputs.size(1)
-        x = self.fc_emb(inputs)
-        x = inputs.reshape(batch_size*n_atoms,inputs.size(2),-1) #shape:[total_atoms, n_timesteps,2*n_emb]
+        x = self.fc_emb(inputs) #Shape:[batch_size, num_atoms, num_timesteps, 2*n_emb]
+        x = x.reshape(batch_size*n_atoms,inputs.size(2),-1) #shape:[total_atoms, n_timesteps,2*n_emb]
         x = x.transpose(-2,-1) #shape:[total_atoms, 2*n_emb, n_timesteps]
         x = self.res_blocks(x)#shape: [total_trajectories, c_hidden, num_timesteps]
         x = self.maxpool(x)
