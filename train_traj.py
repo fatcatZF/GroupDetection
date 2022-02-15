@@ -148,8 +148,13 @@ rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
 if args.encoder=="gtcn":
     encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
                          args.kernel_size, args.depth, args.n_latent, args.model_increment)
-else:
-    encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)    
+elif args.encoder=="lstm":
+    encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)
+elif args.encoder=="glstm":
+    encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+elif args.encoder=="tcn":
+    encoder = TCNEncoder(args.dims, args.c_hidden, args.c_out, args.kernel_size,
+                         args.depth, args.n_latent)   
 
 decoder = RNNDecoder(args.n_latent, args.dims, args.n_emb, args.n_noise,
                      args.rnn_type, args.reverse)
