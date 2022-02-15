@@ -281,7 +281,7 @@ class EFGAT(nn.Module):
     """Multi-head attention with skip-connection"""
     def __init__(self, n_in, n_emb, n_heads=2, model_increment=True):
         super(EFGAT, self).__init__()
-        self.fc_skip = nn.Linear(n_in, n_heads*n_emb)
+        self.fc_skip = nn.Linear(n_in, n_emb)
         self.multi_gats = nn.ModuleList([GATLayer(n_in, n_emb, model_increment) for i in range(n_heads)])
         self.n_heads = n_heads
         self.model_increment = model_increment
@@ -295,20 +295,60 @@ class EFGAT(nn.Module):
         """
         attention = []
         #x_skip = self.fc_skip(x) #shape: [batch_size, num_atoms, num_timesteps, n_heads*n_emb]
-        x_skip = x
-        x_skip = x_skip.permute(0,2,1,-1) #shape:[batch_size,num_timesteps,num_atoms, n_in]
+        x_skip = self.fc_skip(x)
+        x_skip = x_skip.permute(0,2,1,-1) #shape:[batch_size,num_timesteps,num_atoms, n_emb]
         if self.model_increment:
-            x_skip = x_skip[:,:-1,:,:] #shape: [batch_size,num_timesteps-1,num_atoms, n_in]
+            x_skip = x_skip[:,:-1,:,:] #shape: [batch_size,num_timesteps-1,num_atoms, n_emb]
         
         for i in range(self.n_heads):
             attention.append(self.multi_gats[i](x, rel_rec, rel_send))
             
-        attention = torch.cat(attention, dim=-1) #shape:[batch_size, n_timesteps, n_atoms, n_emb*n_heads]
+        #attention = torch.cat(attention, dim=-1) #shape:[batch_size, n_timesteps, n_atoms, n_emb*n_heads]
+        attention = torch.stack(attention)
+        attention = attention.mean(dim=0)
         
-        concat = torch.cat([x_skip, attention], dim=-1) #shape:[batch_size, num_timesteps, n_atoms, n_emb*n_heads+n_in]
+        concat = torch.cat([x_skip, attention], dim=-1) #shape:[batch_size, num_timesteps, n_atoms, 2*n_emb]
         
-        return (concat).permute(0,2,1,-1) #shape:[batch_size,n_atoms,n_timesteps,n_emb*n_heads+n_in]
+        return (concat).permute(0,2,1,-1) #shape:[batch_size,n_atoms,n_timesteps, 2*n_emb]
         
+        
+ 
+class TCNEncoder(nn.Module):
+    """TCN Encoder"""
+    def __init__(self, n_in,  c_hidden, c_out, kernel_size, 
+                 depth, n_out):
+        super(TCNEncoder, self).__init__()
+        res_layers = [] 
+        for i in range(depth):
+            in_channels = n_in if i==0 else c_hidden
+            res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
+                                              dilation=2**(2*i))]
+        self.res_blocks = torch.nn.Sequential(*res_layers)
+        self.maxpool = nn.MaxPool1d(kernel_size=3)
+        self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
+        self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
+        self.fc_h = nn.Linear(c_out, n_out)
+        
+    def forward(self, inputs, rel_rec=None, rel_send=None):
+        """
+        args:
+            inputs: [batch_size, num_atoms, num_timesteps, n_in]
+        return: latents of sequences of atoms
+        """
+        batch_size = inputs.size(0)
+        n_atoms = inputs.size(1)
+        x = inputs.reshape(batch_size*n_atoms,inputs.size(2),-1) #shape:[total_atoms, n_timesteps, n_in]
+        x = x.transpose(-2,-1) #shape:[total_atoms, n_heads*n_emb, n_timesteps]
+        x = self.res_blocks(x)#shape: [total_trajectories, c_hidden, num_timesteps]
+        x = self.maxpool(x)
+        pred = self.conv_predict(x)       
+        attention = F.softmax(self.conv_attention(x), dim=-1) #attention over timesteps
+        pred_attention = (pred*attention).mean(dim=2) #shape: [total_trajctories, c_out]
+        pred_attention = pred_attention.view(batch_size, n_atoms, -1)
+        #shape: [batch_size, num_atoms, c_out]
+        h = F.softsign(self.fc_h(pred_attention))
+        
+        return h #shape:[batch_size, num_atoms, n_out]
         
         
         
@@ -323,7 +363,7 @@ class GraphTCNEncoder(nn.Module):
         
         res_layers = [] #residual convolutional layers
         for i in range(depth):
-            in_channels = n_emb*n_heads+n_in if i==0 else c_hidden
+            in_channels = 2*n_emb if i==0 else c_hidden
             res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
                                               dilation=2**(2*i))]
         self.res_blocks = torch.nn.Sequential(*res_layers)
@@ -347,9 +387,9 @@ class GraphTCNEncoder(nn.Module):
         """
         #if self.model_increment:
         #    inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
-        x = self.efgat(inputs, rel_rec, rel_send) #shape: [batch_size, n_atoms, n_timesteps, n_heads*n_emb+n_in]
+        x = self.efgat(inputs, rel_rec, rel_send) #shape: [batch_size, n_atoms, n_timesteps, 2*n_emb]
        
-        x = x.reshape(x.size(0)*x.size(1),x.size(2),-1) #shape:[total_atoms, n_timesteps, n_heads*n_emb+n_in]
+        x = x.reshape(x.size(0)*x.size(1),x.size(2),-1) #shape:[total_atoms, n_timesteps, 2*n_emb]
         x = x.transpose(-2,-1) #shape:[total_atoms, n_heads*n_emb, n_timesteps]
         #shape: [total_trajectories, n_in, num_timesteps]
         
@@ -399,6 +439,35 @@ class LSTMEncoder(nn.Module):
         h = h.view(batch_size, num_atoms, -1)
         return h
 
+
+#Graph LSTM Encoder
+class GraphLSTMEncoder(nn.Module):
+    """Graph LSTM Encoder"""
+    def __init__(self, n_in, n_emb=16,  n_heads=2 ,n_h=32, model_increment=True):
+        super(LSTMEncoder, self).__init__()
+        self.efgat = EFGAT(n_in, n_emb, n_heads, model_increment)
+        self.lstm_cell = LSTMCell(2*n_emb, n_h)
+        self.model_increment = model_increment
+        
+    def forward(self, inputs, rel_rec, rel_send):
+        """
+        args:
+            inputs:[batch_size, num_atoms, num_timesteps, n_in]
+        """
+        batch_size = inputs.size(0)
+        num_atoms = inputs.size(1)
+        num_timesteps = inputs.size(2)
+        if self.model_increment:
+            num_timesteps = num_timesteps-1
+        x = self.efgat(inputs)
+        #shape: [batch_size, n_atoms, n_timesteps/n_timesteps-1, 2*n_emb]
+        hc = None
+        for i in range(num_timesteps):
+            x_i = x[:,:,i,:]
+            h, c = self.lstm_cell(x_i, hc)
+            hc = (h,c)
+        h = h.view(batch_size, num_atoms, -1)
+        return h
 
     
 
