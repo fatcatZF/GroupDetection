@@ -306,8 +306,10 @@ def train(epoch, best_val_loss, initial_teaching_rate):
           'time: {:.4f}s'.format(time.time() - t))
     
     if args.save_folder and np.mean(loss_val) < best_val_loss and initial_teaching_rate<=args.min_teaching:
-        torch.save(encoder.state_dict(), encoder_file)
-        torch.save(decoder.state_dict(), decoder_file)
+        #torch.save(encoder.state_dict(), encoder_file)
+        torch.save(encoder, encoder_file)
+        #torch.save(decoder.state_dict(), decoder_file)
+        torch.save(decoder, decoder_file)
         print('Best model so far, saving...')
         print('Epoch: {:04d}'.format(epoch+1),
               'nll_train: {:.10f}'.format(np.mean(nll_train)),
@@ -333,10 +335,14 @@ def test():
     mse_test = []
     loss_test = []
     
+    #encoder.eval()
+    #decoder.eval()
+    #encoder.load_state_dict(torch.load(encoder_file))
+    #decoder.load_state_dict(torch.load(decoder_file))
+    encoder = torch.load(encoder_file)
+    decoder = torch.load(decoder_file)
     encoder.eval()
     decoder.eval()
-    encoder.load_state_dict(torch.load(encoder_file))
-    decoder.load_state_dict(torch.load(decoder_file))
     
     for batch_idx, (data, relations) in enumerate(test_loader):
         if args.cuda:
