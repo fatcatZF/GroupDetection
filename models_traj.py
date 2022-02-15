@@ -315,12 +315,13 @@ class EFGAT(nn.Module):
  
 class TCNEncoder(nn.Module):
     """TCN Encoder"""
-    def __init__(self, n_in,  c_hidden, c_out, kernel_size, 
+    def __init__(self, n_in, n_emb, c_hidden, c_out, kernel_size, 
                  depth, n_out):
         super(TCNEncoder, self).__init__()
+        self.fc_emb = nn.Linear(n_in, 2*n_emb)
         res_layers = [] 
         for i in range(depth):
-            in_channels = n_in if i==0 else c_hidden
+            in_channels = 2*n_emb if i==0 else c_hidden
             res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
                                               dilation=2**(2*i))]
         self.res_blocks = torch.nn.Sequential(*res_layers)
@@ -337,8 +338,9 @@ class TCNEncoder(nn.Module):
         """
         batch_size = inputs.size(0)
         n_atoms = inputs.size(1)
-        x = inputs.reshape(batch_size*n_atoms,inputs.size(2),-1) #shape:[total_atoms, n_timesteps, n_in]
-        x = x.transpose(-2,-1) #shape:[total_atoms, n_heads*n_emb, n_timesteps]
+        x = self.fc_emb(inputs)
+        x = inputs.reshape(batch_size*n_atoms,inputs.size(2),-1) #shape:[total_atoms, n_timesteps,2*n_emb]
+        x = x.transpose(-2,-1) #shape:[total_atoms, 2*n_emb, n_timesteps]
         x = self.res_blocks(x)#shape: [total_trajectories, c_hidden, num_timesteps]
         x = self.maxpool(x)
         pred = self.conv_predict(x)       
@@ -417,8 +419,8 @@ class LSTMEncoder(nn.Module):
     """LSTM Encoder"""
     def __init__(self, n_in, n_emb=16, n_h=32):
         super(LSTMEncoder, self).__init__()
-        self.fc_emb = nn.Linear(n_in, n_emb)
-        self.lstm_cell = LSTMCell(n_emb, n_h)
+        self.fc_emb = nn.Linear(n_in, 2*n_emb)
+        self.lstm_cell = LSTMCell(2*n_emb, n_h)
         
     def forward(self, inputs, rel_rec=None, rel_send=None):
         """
