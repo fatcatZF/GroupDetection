@@ -152,7 +152,7 @@ elif args.encoder=="lstm":
 elif args.encoder=="glstm":
     encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_latent)
 elif args.encoder=="tcn":
-    encoder = TCNEncoder(args.dims, args.c_hidden, args.c_out, args.kernel_size,
+    encoder = TCNEncoder(args.dims, args.n_emb ,args.c_hidden, args.c_out, args.kernel_size,
                          args.depth, args.n_latent)
 
 decoder = RNNDecoder(args.n_latent, args.dims, args.n_emb, args.n_noise,
