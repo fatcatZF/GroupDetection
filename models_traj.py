@@ -294,17 +294,20 @@ class EFGAT(nn.Module):
             rel_send: sender matrix, [num_edges, num_atoms]
         """
         attention = []
-        x_skip = self.fc_skip(x) #shape: [batch_size, num_atoms, num_timesteps, n_heads*n_emb]
-        x_skip = x_skip.permute(0,2,1,-1) #shape:[batch_size,num_timesteps,num_atoms, n_heads*n_emb]
+        #x_skip = self.fc_skip(x) #shape: [batch_size, num_atoms, num_timesteps, n_heads*n_emb]
+        x_skip = x
+        x_skip = x_skip.permute(0,2,1,-1) #shape:[batch_size,num_timesteps,num_atoms, n_in]
         if self.model_increment:
-            x_skip = x_skip[:,:-1,:,:] #shape: [batch_size,num_timesteps-1,num_atoms, n_heads*n_emb]
+            x_skip = x_skip[:,:-1,:,:] #shape: [batch_size,num_timesteps-1,num_atoms, n_in]
         
         for i in range(self.n_heads):
             attention.append(self.multi_gats[i](x, rel_rec, rel_send))
             
-        attention = torch.cat(attention, dim=-1) #shape:[batch_size, n_timesteps, n_atoms, n_emb]
+        attention = torch.cat(attention, dim=-1) #shape:[batch_size, n_timesteps, n_atoms, n_emb*n_heads]
         
-        return (attention+x_skip).permute(0,2,1,-1) #shape:[batch_size,n_atoms,n_timesteps,n_emb]
+        concat = torch.cat([x_skip, attention], dim=-1) #shape:[batch_size, num_timesteps, n_atoms, n_emb*n_heads+n_in]
+        
+        return (concat).permute(0,2,1,-1) #shape:[batch_size,n_atoms,n_timesteps,n_emb*n_heads+n_in]
         
         
         
@@ -320,7 +323,7 @@ class GraphTCNEncoder(nn.Module):
         
         res_layers = [] #residual convolutional layers
         for i in range(depth):
-            in_channels = n_emb*n_heads if i==0 else c_hidden
+            in_channels = n_emb*n_heads+n_in if i==0 else c_hidden
             res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
                                               dilation=2**(2*i))]
         self.res_blocks = torch.nn.Sequential(*res_layers)
@@ -344,9 +347,9 @@ class GraphTCNEncoder(nn.Module):
         """
         #if self.model_increment:
         #    inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
-        x = self.efgat(inputs, rel_rec, rel_send) #shape: [batch_size, n_atoms, n_timesteps, n_heads*n_emb]
+        x = self.efgat(inputs, rel_rec, rel_send) #shape: [batch_size, n_atoms, n_timesteps, n_heads*n_emb+n_in]
        
-        x = x.reshape(x.size(0)*x.size(1),x.size(2),-1) #shape:[total_atoms, n_timesteps, n_heads*n_emb]
+        x = x.reshape(x.size(0)*x.size(1),x.size(2),-1) #shape:[total_atoms, n_timesteps, n_heads*n_emb+n_in]
         x = x.transpose(-2,-1) #shape:[total_atoms, n_heads*n_emb, n_timesteps]
         #shape: [total_trajectories, n_in, num_timesteps]
         
