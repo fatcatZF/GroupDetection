@@ -444,7 +444,7 @@ class LSTMEncoder(nn.Module):
 class GraphLSTMEncoder(nn.Module):
     """Graph LSTM Encoder"""
     def __init__(self, n_in, n_emb=16,  n_heads=2 ,n_h=32, model_increment=True):
-        super(LSTMEncoder, self).__init__()
+        super(GraphLSTMEncoder, self).__init__()
         self.efgat = EFGAT(n_in, n_emb, n_heads, model_increment)
         self.lstm_cell = LSTMCell(2*n_emb, n_h)
         self.model_increment = model_increment
