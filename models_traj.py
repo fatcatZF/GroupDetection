@@ -459,7 +459,7 @@ class GraphLSTMEncoder(nn.Module):
         num_timesteps = inputs.size(2)
         if self.model_increment:
             num_timesteps = num_timesteps-1
-        x = self.efgat(inputs)
+        x = self.efgat(inputs, rel_rec, rel_send)
         #shape: [batch_size, n_atoms, n_timesteps/n_timesteps-1, 2*n_emb]
         hc = None
         for i in range(num_timesteps):
