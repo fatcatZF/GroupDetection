@@ -84,9 +84,9 @@ parser.add_argument('--gamma', type=float, default=0.5,
 parser.add_argument('--var', type=float, default=5e-5,
                     help='Output variance.')
 
-parser.add_argument("--gc-weight", type=float, default=100,
+parser.add_argument("--gc-weight", type=float, default=0,
                     help="Group Contrasitive Weight")
-parser.add_argument("--sc-weight", type=float, default=100,
+parser.add_argument("--sc-weight", type=float, default=0.1,
                     help = "sparse constraints.")
 
 args = parser.parse_args()
