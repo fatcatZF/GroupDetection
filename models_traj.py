@@ -216,7 +216,7 @@ class GATLayer(nn.Module):
         senders = torch.matmul(rel_send, x.view(x.size(0),x.size(1),-1))
         senders = senders.view(senders.size(0), senders.size(1), x.size(2),x.size(3))
         receivers = torch.matmul(rel_rec, x.view(x.size(0),x.size(1),-1))
-        receivers = senders.view(receivers.size(0), receivers.size(1), x.size(2),
+        receivers = receivers.view(receivers.size(0), receivers.size(1), x.size(2),
                       x.size(3))
         #shape: [batch_size, num_edges, num_timesteps, num_features]
         spatial_relations = receivers-senders
@@ -230,7 +230,7 @@ class GATLayer(nn.Module):
             senders = torch.matmul(rel_send, x.view(x.size(0),x.size(1),-1))
             senders = senders.view(senders.size(0), senders.size(1), x.size(2),x.size(3))
             receivers = torch.matmul(rel_rec, x.view(x.size(0),x.size(1),-1))
-            receivers = senders.view(receivers.size(0), receivers.size(1), x.size(2),
+            receivers = receivers.view(receivers.size(0), receivers.size(1), x.size(2),
                           x.size(3))
             rec_send = torch.cat([senders,receivers],dim=-1)
             #shape: [batch_size, num_edges, num_timesteps-1, 2*num_features]
@@ -311,6 +311,49 @@ class EFGAT(nn.Module):
         
         return (concat).permute(0,2,1,-1) #shape:[batch_size,n_atoms,n_timesteps, 2*n_emb]
         
+
+
+class GCNLayer(nn.Module):
+    def __init__(self, n_in, n_emb):
+        super(GCNLayer, self).__init__()
+        self.fc_conv = nn.Linear(n_in, n_emb)
+        self.fc_skip = nn.Linear(n_in, n_emb)
+        
+    def forward(self, inputs, rel_rec, rel_send, eps=1e-20):
+        """
+        args:
+            inputs: [batch_size, n_nodes, n_timesteps, n_dims]
+            rel_rec/rel_send: [n_edges, n_nodes]
+        """
+        #senders and receivers at each moment
+        senders = torch.matmul(rel_send, x.view(x.size(0),x.size(1),-1))
+        senders = senders.view(senders.size(0), senders.size(1), x.size(2),x.size(3))
+        receivers = torch.matmul(rel_rec, x.view(x.size(0),x.size(1),-1))
+        receivers = receivers.view(receivers.size(0), receivers.size(1), x.size(2),
+                      x.size(3))
+        #shape: [batch_size, num_edges, n_timesteps, n_dims]
+        #compute adjacency matrix
+        spatial_relations = receivers-senders
+        #shape: [batch_size, num_edges, n_timesteps, n_dims]
+        spatial_norm = torch.norm(spatial_relations, dim=-1, p=2)
+        adj_values = 1/(spatial_norm+eps)
+        adj_values = adj_values.permute(0,2,1)
+        adj_values = torch.diag_embed(adj_values)
+        adj_values = torch.matmul(rel_send.t(), torch.matmul(adj_values, rel_rec))
+        adj_values_normalized = normalize_graph(adj_values, add_self_loops=False)
+        #shape: [batch_size, n_timesteps, n_atoms, n_atoms]
+        x_conv = self.fc_conv(torch.matmul(adj_values_normalized, inputs.permute(0,2,1,-1)))
+        x_conv = x_conv.permute(0,2,1,-1) 
+        #shape: [batch_size, n_atoms, n_timesteps, n_dim]
+        x_skip = self.fc_skip(inputs)
+        
+        x_cat = torch.cat([x_skip, x_conv], dim=-1)
+        #shape: [batch_size, n_atoms, n_timesteps, 2*n_emb]
+        
+        return x_cat
+        
+
+
         
  
 class TCNEncoder(nn.Module):
