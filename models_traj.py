@@ -272,7 +272,7 @@ class GATLayer(nn.Module):
         
         
         
-        return F.leaky_relu(torch.matmul(attention, nodes_embed))
+        return torch.matmul(attention, nodes_embed)
         
         
  
@@ -305,7 +305,7 @@ class EFGAT(nn.Module):
             
         #attention = torch.cat(attention, dim=-1) #shape:[batch_size, n_timesteps, n_atoms, n_emb*n_heads]
         attention = torch.stack(attention)
-        attention = attention.mean(dim=0)
+        attention = F.leaky_relu(attention.mean(dim=0))
         
         concat = torch.cat([x_skip, attention], dim=-1) #shape:[batch_size, num_timesteps, n_atoms, 2*n_emb]
         
@@ -350,7 +350,7 @@ class GCNLayer(nn.Module):
         x_cat = torch.cat([x_skip, x_conv], dim=-1)
         #shape: [batch_size, n_atoms, n_timesteps, 2*n_emb]
         
-        return x_cat
+        return F.selu(x_cat)
         
 
 
