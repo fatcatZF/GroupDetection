@@ -455,7 +455,51 @@ class GraphTCNEncoder(nn.Module):
         
         return h
         
- 
+
+class GCNTCNEncoder(nn.Module):
+    """GCNTCN Encoder"""
+    def __init__(self, n_in, n_emb, c_hidden, c_out, kernel_size=3, depth=2,
+                 n_out=32):
+        super(GCNTCNEncoder, self).__init__()
+        self.gcn = GCNLayer(n_in, n_emb)
+        res_layers = [] #residual convolutional layers
+        for i in range(depth):
+            in_channels = 2*n_emb if i==0 else c_hidden
+            res_layers += [GatedResCausalConvBlock(in_channels, c_hidden, kernel_size,
+                                              dilation=2**(2*i))]
+        self.res_blocks = torch.nn.Sequential(*res_layers)
+        self.maxpool = nn.MaxPool1d(kernel_size=3)
+        
+        self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
+        self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
+        
+        self.fc_h = nn.Linear(c_out, n_out)
+        
+    def forward(self, inputs, rel_rec, rel_send):
+        """
+        args:
+            inputs: [batch_size, n_atoms, n_timesteps, n_in]
+            
+        return: latents of trajectories of atoms
+        """
+        x = self.gcn(inputs, rel_rec, rel_send)
+        x = x.reshape(x.size(0)*x.size(1),x.size(2),-1) #shape:[total_atoms, n_timesteps, 2*n_emb]
+        x = x.transpose(-2,-1) #shape:[total_atoms, 2*n_emb, n_timesteps]
+        #Shape: [total_trajectories, 2*n_emb, n_timesteps]
+        x = self.res_blocks(x) #shape: [total_trajectories, c_hidden, num_timesteps]
+        x = self.maxpool(x)
+        pred = self.conv_predict(x)       
+        attention = F.softmax(self.conv_attention(x), dim=-1) #attention over timesteps
+        pred_attention = (pred*attention).mean(dim=2) #shape: [total_trajctories, c_out]
+        
+        pred_attention = pred_attention.view(inputs.size(0), inputs.size(1), -1)
+        h = F.softsign(self.fc_h(pred_attention))
+        
+        return h
+
+
+
+
 
 #LSTM baseline    
 class LSTMEncoder(nn.Module):
@@ -511,6 +555,33 @@ class GraphLSTMEncoder(nn.Module):
             x_i = x[:,:,i,:]
             h, c = self.lstm_cell(x_i, hc)
             hc = (h,c)
+        h = h.view(batch_size, num_atoms, -1)
+        return h
+
+
+#GCN LSTM Encoder
+class GCNLSTMEncoder(nn.Module):
+    """GCN LSTM Encoder"""
+    def __init__(self, n_in, n_emb=16, n_h=32):
+        super(GCNLSTMEncoder, self).__init__()
+        self.gcn = GCNLayer(n_in, n_emb)
+        self.lstm_cell = LSTMCell(2*n_emb, n_h)
+        
+    def forward(self, inputs, rel_rec, rel_send):
+        """
+        args:
+            inputs:[batch_size, num_atoms, num_timesteps, n_in]
+        """
+        batch_size = inputs.size(0)
+        num_atoms = inputs.size(1)
+        num_timesteps = inputs.size(2)
+        x = self.gcn(inputs, rel_rec, rel_sen)
+        #shape: [batch_size, n_atoms, n_timesteps, 2*n_emb]
+        hc = None
+        for i in range(num_timesteps):
+            x_i = x[:,:,i,:]
+            h,c = self.lstm_cell(x_i, hc)
+            hc = (h, c)
         h = h.view(batch_size, num_atoms, -1)
         return h
 

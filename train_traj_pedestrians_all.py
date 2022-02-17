@@ -139,10 +139,19 @@ else:
 if args.encoder=="gtcn":
     encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
                              args.kernel_size, args.depth, args.n_latent, args.model_increment)
+    
+elif args.encoder=="gcntcn":
+    encoder = GCNTCNEncoder(args.dims, args.n_emb, args.c_hidden, args.c_out, args.kernel_size,
+                            args.depth, args.n_latent)
+    
 elif args.encoder=="lstm":
     encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)
 elif args.encoder=="glstm":
     encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+    
+elif args.encoder=="gcnlstm":
+    encoder = GCNLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+    
 elif args.encoder=="tcn":
     encoder = TCNEncoder(args.dims, args.n_emb ,args.c_hidden, args.c_out, args.kernel_size,
                          args.depth, args.n_latent)
@@ -208,7 +217,14 @@ def train(epoch, best_train_loss, initial_teaching_rate):
         
         teaching_rate = 1.
         
-        Z = encoder(example, rel_rec_sl, rel_send_sl)
+        if isinstance(encoder,GCNTCNEncoder) or isinstance(encoder, GCNLSTMEncoder):
+            Z = encoder(example, rel_rec, rel_send)
+        else:
+        
+            Z = encoder(example, rel_rec_sl, rel_send_sl)
+            #shape: [batch_size, num_atoms, n_latent]
+        
+        
         
         loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
         

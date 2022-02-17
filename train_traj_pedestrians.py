@@ -147,10 +147,18 @@ else:
 if args.encoder=="gtcn":
     encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
                              args.kernel_size, args.depth, args.n_latent, args.model_increment)
+elif args.encoder=="gcntcn":
+    encoder = GCNTCNEncoder(args.dims, args.n_emb, args.c_hidden, args.c_out, args.kernel_size,
+                            args.depth, args.n_latent)
+
 elif args.encoder=="lstm":
     encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)
 elif args.encoder=="glstm":
     encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+    
+elif args.encoder=="gcnlstm":
+    encoder = GCNLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+
 elif args.encoder=="tcn":
     encoder = TCNEncoder(args.dims, args.n_emb ,args.c_hidden, args.c_out, args.kernel_size,
                          args.depth, args.n_latent)
@@ -222,10 +230,12 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         #                    args.min_teaching)
         teaching_rate = 1.
         
-        Z = encoder(example, rel_rec_sl, rel_send_sl)
-        #shape: [batch_size, num_atoms, n_latent]
-        #print("label_masked size: ", label_masked.size())
-        #print("Z size: ", Z.size())
+        if isinstance(encoder,GCNTCNEncoder) or isinstance(encoder, GCNLSTMEncoder):
+            Z = encoder(example, rel_rec, rel_send)
+        else:
+        
+            Z = encoder(example, rel_rec_sl, rel_send_sl)
+            #shape: [batch_size, num_atoms, n_latent]
         label_masked = torch.diag_embed(label_masked)
         #size: [batch_size, num_edges, num_edges]
         label_masked = torch.matmul(rel_send.t(), torch.matmul(label_masked, rel_rec))
