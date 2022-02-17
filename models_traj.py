@@ -342,7 +342,7 @@ class GCNLayer(nn.Module):
         adj_values = torch.matmul(rel_send.t(), torch.matmul(adj_values, rel_rec))
         adj_values_normalized = normalize_graph(adj_values, add_self_loops=False)
         #shape: [batch_size, n_timesteps, n_atoms, n_atoms]
-        x_conv = self.fc_conv(torch.matmul(adj_values_normalized, inputs.permute(0,2,1,-1)))
+        x_conv = self.fc_conv(torch.matmul(adj_values_normalized, x.permute(0,2,1,-1)))
         x_conv = x_conv.permute(0,2,1,-1) 
         #shape: [batch_size, n_atoms, n_timesteps, n_dim]
         x_skip = self.fc_skip(x)
