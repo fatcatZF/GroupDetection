@@ -402,7 +402,7 @@ class TCNEncoder(nn.Module):
 class GraphTCNEncoder(nn.Module):
     """Graph TCN Encoder"""
     def __init__(self, n_in=4, n_emb=16, n_heads=2 ,c_hidden=64, c_out=48, kernel_size=5,
-                 depth=3, n_out=32, model_increment=False):
+                 depth=3, n_out=32, model_increment=True):
         super(GraphTCNEncoder, self).__init__()
         self.efgat = EFGAT(n_in, n_emb, n_heads, model_increment)
         

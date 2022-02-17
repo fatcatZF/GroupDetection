@@ -90,9 +90,9 @@ parser.add_argument('--var', type=float, default=5e-5,
                     help='Output variance.')
 
 
-parser.add_argument("--gc-weight", type=float, default=100,
+parser.add_argument("--gc-weight", type=float, default=0,
                     help="Group Contrasitive Weight.")
-parser.add_argument("--sc-weight", type=float, default=100,
+parser.add_argument("--sc-weight", type=float, default=0.2,
                     help="Sparse Constraint Weight.")
 
 args = parser.parse_args()
@@ -147,23 +147,23 @@ rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
 
 if args.encoder=="gtcn":
     encoder = GraphTCNEncoder(args.dims, args.n_emb, args.n_heads, args.c_hidden, args.c_out,
-                         args.kernel_size, args.depth, args.n_latent, args.model_increment)
-
+                             args.kernel_size, args.depth, args.n_latent, args.model_increment)
+    
 elif args.encoder=="gcntcn":
     encoder = GCNTCNEncoder(args.dims, args.n_emb, args.c_hidden, args.c_out, args.kernel_size,
-                            args.depth, args.n_latent)    
-
+                            args.depth, args.n_latent)
+    
 elif args.encoder=="lstm":
     encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)
 elif args.encoder=="glstm":
-    encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+    encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_heads, args.n_latent, args.model_increment)
     
 elif args.encoder=="gcnlstm":
     encoder = GCNLSTMEncoder(args.dims, args.n_emb, args.n_latent)
     
 elif args.encoder=="tcn":
     encoder = TCNEncoder(args.dims, args.n_emb ,args.c_hidden, args.c_out, args.kernel_size,
-                         args.depth, args.n_latent)   
+                         args.depth, args.n_latent)  
 
 decoder = RNNDecoder(args.n_latent, args.dims, args.n_emb, args.n_noise,
                      args.rnn_type, args.reverse)

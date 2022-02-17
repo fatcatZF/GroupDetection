@@ -89,7 +89,7 @@ parser.add_argument('--var', type=float, default=5e-5,
                     help='Output variance.')
 
 
-parser.add_argument("--sc-weight", type=float, default=0.1,
+parser.add_argument("--sc-weight", type=float, default=0.2,
                     help = "sparse constraints.")
 
 args = parser.parse_args()
@@ -147,7 +147,7 @@ elif args.encoder=="gcntcn":
 elif args.encoder=="lstm":
     encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)
 elif args.encoder=="glstm":
-    encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_latent)
+    encoder = GraphLSTMEncoder(args.dims, args.n_emb, args.n_heads, args.n_latent, args.model_increment)
     
 elif args.encoder=="gcnlstm":
     encoder = GCNLSTMEncoder(args.dims, args.n_emb, args.n_latent)
