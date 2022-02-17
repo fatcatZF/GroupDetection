@@ -319,10 +319,10 @@ class GCNLayer(nn.Module):
         self.fc_conv = nn.Linear(n_in, n_emb)
         self.fc_skip = nn.Linear(n_in, n_emb)
         
-    def forward(self, inputs, rel_rec, rel_send, eps=1e-20):
+    def forward(self, x, rel_rec, rel_send, eps=1e-20):
         """
         args:
-            inputs: [batch_size, n_nodes, n_timesteps, n_dims]
+            x: [batch_size, n_nodes, n_timesteps, n_dims]
             rel_rec/rel_send: [n_edges, n_nodes]
         """
         #senders and receivers at each moment
@@ -345,7 +345,7 @@ class GCNLayer(nn.Module):
         x_conv = self.fc_conv(torch.matmul(adj_values_normalized, inputs.permute(0,2,1,-1)))
         x_conv = x_conv.permute(0,2,1,-1) 
         #shape: [batch_size, n_atoms, n_timesteps, n_dim]
-        x_skip = self.fc_skip(inputs)
+        x_skip = self.fc_skip(x)
         
         x_cat = torch.cat([x_skip, x_conv], dim=-1)
         #shape: [batch_size, n_atoms, n_timesteps, 2*n_emb]
