@@ -84,8 +84,7 @@ parser.add_argument('--gamma', type=float, default=0.5,
 parser.add_argument('--var', type=float, default=5e-5,
                     help='Output variance.')
 
-parser.add_argument("--gc-weight", type=float, default=0,
-                    help="Group Contrasitive Weight")
+
 parser.add_argument("--sc-weight", type=float, default=0.2,
                     help = "sparse constraints.")
 
@@ -104,20 +103,16 @@ initial_teaching_rate = args.teaching_rate
 
 
 #Load data
-data_folder = os.path.join("data/pedestrian", args.suffix)
+data_folder = os.path.join("data/pedestrian/all", args.suffix)
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
     examples_train = pickle.load(f)
 with open(os.path.join(data_folder, "labels_train.pkl"), 'rb') as f:
     labels_train = pickle.load(f)
-with open(os.path.join(data_folder, "labels_train_masked.pkl"),'rb') as f:
-    labels_train_masked = pickle.load(f)
 with open(os.path.join(data_folder, "tensors_valid.pkl"), 'rb') as f:
     examples_valid = pickle.load(f)
 with open(os.path.join(data_folder, "labels_valid.pkl"), 'rb') as f:
     labels_valid = pickle.load(f)
-with open(os.path.join(data_folder, "labels_valid_masked.pkl"), 'rb') as f:
-    labels_valid_masked = pickle.load(f)
 with open(os.path.join(data_folder, "tensors_test.pkl"),'rb') as f:
     examples_test = pickle.load(f)
 with open(os.path.join(data_folder, "labels_test.pkl"), 'rb') as f:
@@ -191,9 +186,7 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
 def train(epoch, best_val_loss, initial_teaching_rate):
     t = time.time()
     nll_train = []
-    #kl_train = []
     mse_train = []
-    co_train = []
     sc_train = []
     
     encoder.train()
@@ -208,12 +201,11 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     for idx in training_indices:
         example = examples_train[idx]
         label = labels_train[idx]
-        label_masked = labels_train_masked[idx]
-        label_masked = label_masked.float()
+        
         #add batch size
         example = example.unsqueeze(0)
         label = label.unsqueeze(0)
-        label_masked = label_masked.unsqueeze(0)
+    
         num_atoms = example.size(1) #get number of atoms
         rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
         rel_rec_sl, rel_send_sl = create_edgeNode_relation(num_atoms, self_loops=True)
@@ -221,14 +213,12 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         if args.cuda:
             example = example.cuda()
             label = label.cuda()
-            label_masked = label_masked.cuda()
             rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
             rel_rec_sl, rel_send_sl = rel_rec_sl.cuda(), rel_send_sl.cuda()
         
         example = example.float()
         
-        #teaching_rate = max((args.teaching_k/(args.teaching_k+math.exp(batch_idx/args.teaching_k)))*initial_teaching_rate,
-        #                    args.min_teaching)
+        
         teaching_rate = 1.
         
         if isinstance(encoder,GCNTCNEncoder) or isinstance(encoder, GCNLSTMEncoder):
@@ -237,11 +227,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             #shape: [batch_size, num_atoms, n_latent]
-        label_masked = torch.diag_embed(label_masked)
-        #size: [batch_size, num_edges, num_edges]
-        label_masked = torch.matmul(rel_send.t(), torch.matmul(label_masked, rel_rec))
         
-        loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*label_masked).mean()
         loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
         
         output = decoder(Z, example, teaching_rate)
@@ -253,13 +239,12 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             loss_nll = nll_gaussian(output[:,:,1:,:], example[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], example[:,:,1:,:])
         
-        loss_current = loss_nll+loss_co+loss_sc
+        loss_current = loss_nll+loss_sc
         loss += loss_current
         
         mse_train.append(loss_mse.item())
         nll_train.append(loss_nll.item())
-        #kl_train.append(loss_kl.item())
-        co_train.append(loss_co.item())
+       
         sc_train.append(loss_sc.item())
         
     
@@ -270,7 +255,6 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     nll_val = []
     mse_val = []
     loss_val = []
-    co_val = []
     sc_val = []
     
     encoder.eval()
@@ -282,29 +266,20 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         for idx in valid_indices:
             example = examples_valid[idx]
             label = labels_valid[idx]
-            label_masked = labels_valid_masked[idx]
-            label_masked = label_masked.float()
             #add batch size
             example = example.unsqueeze(0)
             label = label.unsqueeze(0)
-            label_masked = label_masked.unsqueeze(0)
             num_atoms = example.size(1) #get number of atoms
             rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
             rel_rec_sl, rel_send_sl = create_edgeNode_relation(num_atoms, self_loops=True)
             if args.cuda:
                 example = example.cuda()
                 label = label.cuda()
-                label_masked = label_masked.cuda()
                 rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
                 rel_rec_sl, rel_send_sl = rel_rec_sl.cuda(), rel_send_sl.cuda()
             example = example.float()
             Z = encoder(example, rel_rec_sl, rel_send_sl)
-            #Z = mu+sigma*torch.randn_like(sigma)
-            label_masked = torch.diag_embed(label_masked)
-            #size: [batch_size, num_edges, num_edges]
-            label_masked = torch.matmul(rel_send.t(), torch.matmul(label_masked, rel_rec))
             
-            loss_co = args.gc_weight*(torch.cdist(Z,Z, p=2)*label_masked).mean()
             loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
             
             
@@ -316,25 +291,20 @@ def train(epoch, best_val_loss, initial_teaching_rate):
                 loss_nll = nll_gaussian(output[:,:,1:,:], example[:,:,1:,:], args.var)
                 loss_mse = F.mse_loss(output[:,:,1:,:], example[:,:,1:,:])
             
-            loss = loss_nll+loss_co+loss_sc
+            loss = loss_nll+loss_sc
             
             mse_val.append(loss_mse.item())
             nll_val.append(loss_nll.item())
-            #kl_val.append(loss_kl.item())
             loss_val.append(loss.item())
-            co_val.append(loss_co.item())
+           
             sc_val.append(loss_sc.item())
             
             print('Epoch: {:04d}'.format(epoch+1),
                   'nll_train: {:.10f}'.format(np.mean(nll_train)),
-                  #'kl_train: {:.10f}'.format(np.mean(kl_train)),
                   'mse_train: {:.10f}'.format(np.mean(mse_train)),
-                  'co_train: {:.10f}'.format(np.mean(co_train)),
                   "sc_train: {:.10f}".format(np.mean(sc_train)),
                   'nll_val: {:.10f}'.format(np.mean(nll_val)),
-                  #'kl_val: {:.10f}'.format(np.mean(kl_val)),
                   'mse_val: {:.10f}'.format(np.mean(mse_val)),
-                  'co_val: {:.10f}'.format(np.mean(co_val)),
                   "sc_val: {:.10f}".format(np.mean(sc_val)),
                   "teaching rate {:.10f}".format(teaching_rate),
                   'time: {:.4f}s'.format(time.time() - t))
@@ -346,14 +316,10 @@ def train(epoch, best_val_loss, initial_teaching_rate):
                 print('Best model so far, saving...')
                 print('Epoch: {:04d}'.format(epoch+1),
                       'nll_train: {:.10f}'.format(np.mean(nll_train)),
-                      #'kl_train: {:.10f}'.format(np.mean(kl_train)),
                       'mse_train: {:.10f}'.format(np.mean(mse_train)),
-                      'co_train: {:.10f}'.format(np.mean(co_train)),
                       "sc_train: {:.10f}".format(np.mean(sc_train)),
                       'nll_val: {:.10f}'.format(np.mean(nll_val)),
-                      #'kl_val: {:.10f}'.format(np.mean(kl_val)),
                       'mse_val: {:.10f}'.format(np.mean(mse_val)),
-                      'co_val: {:.10f}'.format(np.mean(co_val)),
                       "sc_val: {:.10f}".format(np.mean(sc_val)),
                       "teaching rate {:.10f}".format(teaching_rate),
                       'time: {:.4f}s'.format(time.time() - t), file=log)
@@ -414,7 +380,6 @@ def test():
     print('--------------------------------')
     print(
          'nll_test: {:.10f}'.format(np.mean(nll_test)),
-         #'kl_test: {:.10f}'.format(np.mean(kl_test)),
          'mse_test: {:.10f}'.format(np.mean(mse_test)),)
     
     
