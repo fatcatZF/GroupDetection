@@ -1,3 +1,5 @@
+"""Train NRI supervised way"""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -12,7 +14,7 @@ from torch.optim import lr_scheduler
 
 from utils import *
 from data_utils import *
-from modules_NRI import *
+from models_NRI import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--no-cuda", action="store_true", default=False, 
@@ -135,14 +137,13 @@ if args.cuda:
     tril_indices = tril_indices.cuda()
     
 
-optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
-                       lr=args.lr)
+optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
 
 def train(epoch, best_val_F1):
-    t = time.t()
+    t = time.time()
     loss_train = []
     acc_train = []
     gp_train = []
@@ -170,10 +171,10 @@ def train(epoch, best_val_F1):
         #logits shape: [batch_size, n_edges, edge_types]
         
         #Flatten batch dim
-        output = logits.view(output.size(0)*output.size(1),-1)
+        output = logits.view(logits.size(0)*logits.size(1),-1)
         target = relations.view(-1)
         
-        loss = F.cross_entropy(logits, relations)
+        loss = F.cross_entropy(output, target.long())
         loss.backward()
         
         optimizer.step()
@@ -189,7 +190,7 @@ def train(epoch, best_val_F1):
         gr_train.append(gr)
         ngr_train.append(ngr)
         
-        loss_train.append(loss)
+        loss_train.append(loss.item())
         
     
     encoder.eval()
@@ -205,9 +206,9 @@ def train(epoch, best_val_F1):
             #Shape: [batch_size, n_edges, n_edgetypes]
             
             #Flatten batch dim
-            output = logits.view(output.size(0)*output.size(1),-1)
+            output = logits.view(logits.size(0)*logits.size(1),-1)
             target = relations.view(-1)
-            loss = F.cross_entropy(output, target)
+            loss = F.cross_entropy(output, target.long())
             
             acc = edge_accuracy(logits, relations)
             acc_val.append(acc)
@@ -219,7 +220,7 @@ def train(epoch, best_val_F1):
             gr_val.append(gr)
             ngr_val.append(ngr)
             
-            loss_val.append(loss)
+            loss_val.append(loss.item())
             
             if gr==0 or gp==0:
                 F1 = 0
