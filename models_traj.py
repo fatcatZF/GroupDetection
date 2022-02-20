@@ -359,7 +359,7 @@ class GCNLayer(nn.Module):
 class TCNEncoder(nn.Module):
     """TCN Encoder"""
     def __init__(self, n_in, n_emb, c_hidden, c_out, kernel_size, 
-                 depth, n_out):
+                 depth, n_out, mode="un"):
         super(TCNEncoder, self).__init__()
         self.fc_emb = nn.Linear(n_in, 2*n_emb)
         res_layers = [] 
@@ -372,6 +372,7 @@ class TCNEncoder(nn.Module):
         self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
         self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
         self.fc_h = nn.Linear(c_out, n_out)
+        self.mode = mode
         
     def forward(self, inputs, rel_rec=None, rel_send=None):
         """
@@ -391,7 +392,10 @@ class TCNEncoder(nn.Module):
         pred_attention = (pred*attention).mean(dim=2) #shape: [total_trajctories, c_out]
         pred_attention = pred_attention.view(batch_size, n_atoms, -1)
         #shape: [batch_size, num_atoms, c_out]
-        h = F.softsign(self.fc_h(pred_attention))
+        if self.mode=="un":
+            h = F.softsign(self.fc_h(pred_attention))
+        else:
+            h = F.relu(self.fc_h(pred_attention))
         
         return h #shape:[batch_size, num_atoms, n_out]
         
@@ -402,7 +406,7 @@ class TCNEncoder(nn.Module):
 class GraphTCNEncoder(nn.Module):
     """Graph TCN Encoder"""
     def __init__(self, n_in=4, n_emb=16, n_heads=2 ,c_hidden=64, c_out=48, kernel_size=5,
-                 depth=3, n_out=32, model_increment=True):
+                 depth=3, n_out=32, model_increment=True, mode="un"):
         super(GraphTCNEncoder, self).__init__()
         self.efgat = EFGAT(n_in, n_emb, n_heads, model_increment)
         
@@ -421,6 +425,7 @@ class GraphTCNEncoder(nn.Module):
         #self.fc_sigma = nn.Linear(c_out, n_out)
         self.fc_h = nn.Linear(c_out, n_out)
         self.model_increment=model_increment
+        self.mode = mode
             
             
     def forward(self, inputs, rel_rec, rel_send):
@@ -451,7 +456,10 @@ class GraphTCNEncoder(nn.Module):
         #logvar = self.fc_sigma(pred_attention)
         #sigma = torch.exp(0.5*logvar)
         #h = torch.tanh(self.fc_h(pred_attention))
-        h = F.softsign(self.fc_h(pred_attention))
+        if self.mode=="un":
+            h = F.softsign(self.fc_h(pred_attention))
+        else:
+            h = F.relu(self.fc_h(pred_attention))
         
         return h
         
@@ -741,19 +749,160 @@ class RNNDecoder(nn.Module):
     
 
 
+
+class MLP(nn.Module):
+    """Two-layer fully-connected ELU net with batch norm"""
+    def __init__(self, n_in, n_hid, n_out, do_prob):
+        """
+        n_in: #units of input layers
+        n_hid: #units of hidden layers
+        n_out: #units of output layers
+        do_prob: dropout probability
+        """
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(n_in, n_hid)
+        self.fc2 = nn.Linear(n_hid, n_out)
+        self.bn = nn.BatchNorm1d(n_out)
+        self.dropout_prob = do_prob
+        self.init_weights()
         
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.data.fill_(0.1)
+            elif isinstance(m, nn.BatchNorm1d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+                
+    def batch_norm(self, inputs):
+        """
+        inputs.size(0): batch size
+        inputs.size(1): number of channels
+        """
+        x = inputs.view(inputs.size(0)*inputs.size(1),-1)
+        x = self.bn(x)
+        return x.view(inputs.size(0), inputs.size(1),-1)
+    
+    def forward(self, inputs):
+        #Input shape: [batch_size, n_atoms, n_latent]
+        x = F.elu(self.fc1(inputs))
+        x = F.dropout(x, self.dropout_prob, training=self.training)
+        x = F.elu(self.fc2(x))
+        return self.batch_norm(x)
+    
+    
+    
+class GNNDecoder(nn.Module):
+    def __init__(self, n_latent=32, n_hid=32, n_out=2, do_prob=0.):
+        """
+        n_latent: latent dimension of each atom
+        n_out: group relationships
+        """
+        super(GNNDecoder, self).__init__()
+        self.factor = factor
+        self.mlp1 = MLP(2*n_latent, n_hid, n_hid, do_prob)
+        self.mlp2 = MLP(n_hid+n_latent, n_hid, n_hid, do_prob)
+        self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)           
+        self.fc_out = nn.Linear(n_hid, n_out)
+        self.init_weights()
         
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.fill_(0.1)
+                
+    def edge2node(self, x, rel_rec, rel_send):
+        """
+        x: embedding vectors of edges: [batch_size, n_edges, n_features]
+        """
+        incomming = torch.matmul(rel_rec.t(), x)
+        return incomming/incomming.size(1)
+    
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        edges = torch.cat([senders, receivers], dim=-1)
+        return edges
+    
+    def forward(self, inputs, rel_rec, rel_send):
+        """
+        inputs: [batch_size, n_atoms, n_latent]
         
+        """
+        x = self.node2edge(inputs, rel_rec, rel_send)
+        #shape: [batch_size, n_edges, 2*n_latent]
+        x = self.mlp1(x)
+        #shape: [batch_size, n_edges, n_hid]
+        x_skip = x
         
+        x = self.edge2node(x, rel_rec, rel_send)
+        #shape: [batch_size, n_atoms, n_hid]
+        x = torch.cat([x, inputs], dim=-1)
+        #shape: [batch_size, n_atoms, n_hid+n_latent]
+        x = self.mlp2(x)
+        #shape: [batch_size, n_atoms, n_hid]
+        x = self.node2edge(x, rel_rec, rel_send)
+        #shape: [batch_size, n_atoms, 2*n_hid]
+        x = torch.cat([x, x_skip], dim=-1)
+        #shape: [batch_size, n_atoms, 3*n_hid]
+        x = self.mlp3(x)
         
+      
+        return self.fc_out(x)    
+
+
+
+
+class ConcatDecoder(nn.Module):
+    def __init__(self, n_latent=32, n_hid=32, n_out=2, do_prob=0.):
+        super(ConcatDecoder, self).__init__()
+        self.mlp = MLP(2*n_latent, n_hid, n_hid)
+        self.fc_out = nn.Linear(n_hid, n_out)
+        self.init_weights()
         
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.fill_(0.1)
+                
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        edges = torch.cat([senders, receivers], dim=-1)
+        return edges
     
+    def forward(self, inputs, rel_rec, rel_send):
+        """
+        inputs: [batch_size, n_atoms, n_latent]
+        """
+        x = self.node2edge(inputs, rel_rec, rel_send)
+        x = self.mlp(x)
+        #shape: [batch_size, n_edges, n_hid]
+        return self.fc_out(x)
+
+
+
+
+
+class InnerProdDecoder(nn.Module):
+    def __init__(self):
+        super(InnerProdDecoder, self).__init__()
     
-    
-    
-    
-    
-    
+    def forward(self, Z, rel_rec, rel_send):
+        """
+        args:
+            Z: [batch_size, n_atoms, n_latent]
+        """
+        receivers = torch.matmul(rel_rec, Z)
+        senders = torch.matmul(rel_send, Z)
+        #shape: [batch_size, n_edges, n_latent]
+        edges = receivers*senders
+        edges = edges.sum(-1)
+        #shape: [batch_size, n_edges]
+        return torch.sigmoid(edges)
     
     
     

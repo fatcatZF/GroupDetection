@@ -115,7 +115,7 @@ class MLPEncoder(nn.Module):
             self.mlp4 = MLP(n_hid*3, n_hid, n_hid, do_prob)
             print("Using factor graph MLP encoder.")
         else:
-            self.mlp4 = MLP(n_hid*2, n_Hid, n_hid, do_prob)
+            self.mlp4 = MLP(n_hid*2, n_hid, n_hid, do_prob)
             print("Using MLP encoder.")
         self.fc_out = nn.Linear(n_hid, n_out)
         self.init_weights()
