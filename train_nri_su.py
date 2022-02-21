@@ -244,7 +244,8 @@ def train(epoch, best_val_F1):
           "ngr_val: {:.10f}".format(np.mean(ngr_val)),
           "F1_val: {:.10f}".format(np.mean(F1_val)))
     if args.save_folder and np.mean(F1_val) > best_val_F1:
-        torch.save(encoder.state_dict(), encoder_file)
+        #torch.save(encoder.state_dict(), encoder_file)
+        torch.save(encoder, encoder_file)
         print("Best model so far, saving...")
         print("Epoch: {:04d}".format(epoch),
               "loss_train: {:.10f}".format(np.mean(loss_train)),
@@ -278,8 +279,11 @@ def test():
     gr_test = []
     ngr_test = []
     
+    
+    encoder = torch.load(encoder_file)
     encoder.eval()
-    encoder.load_state_dict(torch.load(encoder_file))
+    #encoder.load_state_dict(torch.load(encoder_file))
+    
     
     for batch_idx, (data, relations) in enumerate(test_loader):
         if args.cuda:
