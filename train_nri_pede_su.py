@@ -33,7 +33,7 @@ parser.add_argument("--batch-size", type=int, default=128,
                     help="Number of samples per batch.")
 parser.add_argument("--lr", type=float, default=0.0005,
                     help="Initial learning rate.")
-parser.add_argument("--encoder-hidden", type=int, default=256,
+parser.add_argument("--encoder-hidden", type=int, default=64,
                     help="Number of hidden units.")
 parser.add_argument("--num-atoms", type=int, default=5,
                     help="Number of atoms.")
@@ -380,6 +380,8 @@ for epoch in range(args.epochs):
         
 print("Optimization Finished!")
 print("Best Epoch: {:04d}".format(best_epoch))
+
+test()
 
             
             
