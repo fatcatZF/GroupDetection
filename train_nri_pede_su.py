@@ -53,6 +53,12 @@ parser.add_argument("--edge-types", type=int, default=2,
                     help="The number of edge types to infer.")
 parser.add_argument("--dims", type=int, default=2,
                     help="The number of feature dimensions.")
+parser.add_argument("--kernel-size", type=int, default=3,
+                    help="Kernel size of WavenetNRI Encoder")
+
+parser.add_argument("--depth", type=int, default=1,
+                    help="depth of Wavenet CNN res blocks.")
+
 parser.add_argument("--timesteps", type=int, default=15,
                     help="The number of time steps per sample.")
 parser.add_argument("--lr-decay", type=int, default=200,
@@ -131,7 +137,8 @@ elif args.encoder == "rescnn":
                                   use_motion=args.use_motion)
     
 elif args.encoder == "wavenet":
-    encoder = WavenetEncoder(args.dims, args.encoder_hidden, args.edge_types,
+    encoder = WavenetEncoder(args.dims, args.encoder_hidden, args.edge_types, 
+                             kernel_size = args.kernel_size, depth=args.depth,
                              do_prob=args.encoder_dropout, factor=args.factor,
                              use_motion=args.use_motion)
     
@@ -146,8 +153,8 @@ if args.cuda:
     encoder.cuda()
     
 
-#optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
-optimizer = optim.SGD(list(encoder.parameters()), lr=args.lr)
+optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
+#optimizer = optim.SGD(list(encoder.parameters()), lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
