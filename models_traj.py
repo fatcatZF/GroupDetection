@@ -810,7 +810,7 @@ class GNNDecoder(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_normal_(m.weight.data)
-                m.bias.fill(0.1)
+                m.bias.data.fill_(0.1)
                 
     def edge2node(self, x, rel_rec, rel_send):
         """
@@ -865,7 +865,7 @@ class ConcatDecoder(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_normal_(m.weight.data)
-                m.bias.fill(0.1)
+                m.bias.data.fill_(0.1)
                 
     def node2edge(self, x, rel_rec, rel_send):
         receivers = torch.matmul(rel_rec, x)
