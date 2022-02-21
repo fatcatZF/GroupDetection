@@ -84,7 +84,7 @@ parser.add_argument('--prior', action='store_true', default=False,
 parser.add_argument('--dynamic-graph', action='store_true', default=False,
                     help='Whether test with dynamically re-computed graph.')
 
-parser.add_argument("--gc-weight", type=float, default=100.,
+parser.add_argument("--gc-weight", type=float, default=0.,
                     help="Group Contrasitive Weight")
 
 
@@ -345,8 +345,10 @@ def train(epoch, best_val_loss):
           'time: {:.4f}s'.format(time.time() - t))
     
     if args.save_folder and np.mean(loss_val) < best_val_loss:
-        torch.save(encoder.state_dict(), encoder_file)
-        torch.save(decoder.state_dict(), decoder_file)
+        #torch.save(encoder.state_dict(), encoder_file)
+        #torch.save(decoder.state_dict(), decoder_file)
+        torch.save(encoder, encoder_file)
+        torch.save(decoder, decoder_file)
         print('Best model so far, saving...')
         print('Epoch: {:04d}'.format(epoch+1),
               'nll_train: {:.10f}'.format(np.mean(nll_train)),
@@ -383,10 +385,14 @@ def test():
     nll_test = []
     kl_test = []
     mse_test = []
+    
+    encoder = torch.load(encoder_file)
+    decoder = torch.load(decoder_file)
+    
     encoder.eval()
     decoder.eval()
-    encoder.load_state_dict(torch.load(encoder_file))
-    decoder.load_state_dict(torch.load(decoder_file))
+    #encoder.load_state_dict(torch.load(encoder_file))
+    #decoder.load_state_dict(torch.load(decoder_file))
     for batch_idx, (data, relations) in enumerate(test_loader):
         if args.cuda:
             data, relations = data.cuda(), relations.cuda()
