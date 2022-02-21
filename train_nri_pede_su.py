@@ -179,7 +179,7 @@ def train(epoch, best_val_F1):
     loss = 0.
     
     for idx in training_indices:
-        example = example_train[idx]
+        example = examples_train[idx]
         label = labels_train[idx]
         #add batch dimension
         example = example.unsqueeze(0)
