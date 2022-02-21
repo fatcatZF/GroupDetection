@@ -18,7 +18,7 @@ from torch.optim import lr_scheduler
 
 from utils import *
 from data_utils import *
-from modules_NRI import *
+from models_NRI import *
 
 
 parser = argparse.ArgumentParser()
