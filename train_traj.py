@@ -50,10 +50,10 @@ parser.add_argument('--n-latent', type=int, default=32,
                     help='latent dimension')
 parser.add_argument('--depth', type=int, default=3,
                     help='depth of Residual CNN Blocks')
-parser.add_argument("--kernel-size", type=int, default=5, 
+parser.add_argument("--kernel-size", type=int, default=3, 
                     help="kernel size of CNN")
 
-parser.add_argument("--n-noise", type=int, default=8,
+parser.add_argument("--n-noise", type=int, default=4,
                     help="noise dimension of RNN")
 parser.add_argument("--rnn-type", type=str, default="gru",
                     help="rnn cell type in the decoder")

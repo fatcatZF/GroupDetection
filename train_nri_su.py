@@ -42,7 +42,7 @@ parser.add_argument("--use-motion", action="store_true", default=False,
                     help="use increments")
 parser.add_argument("--encoder-dropout", type=float, default=0.3,
                     help="Dropout rate (1-keep probability).")
-parser.add_argument("--save-folder", type=str, default="logs/nri",
+parser.add_argument("--save-folder", type=str, default="logs/nrisu",
                     help="Where to save the trained model, leave empty to not save anything.")
 parser.add_argument("--load-folder", type=str, default='', 
                     help="Where to load the trained model.")

@@ -35,8 +35,6 @@ parser.add_argument("--lr", type=float, default=0.0005,
                     help="Initial learning rate.")
 parser.add_argument("--encoder-hidden", type=int, default=64,
                     help="Number of hidden units.")
-parser.add_argument("--num-atoms", type=int, default=5,
-                    help="Number of atoms.")
 parser.add_argument("--encoder", type=str, default="wavenet",
                     help="Type of encoder model.")
 parser.add_argument("--no-factor", action="store_true", default=False,
@@ -148,7 +146,8 @@ if args.cuda:
     encoder.cuda()
     
 
-optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
+#optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
+optimizer = optim.SGD(list(encoder.parameters()), lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
