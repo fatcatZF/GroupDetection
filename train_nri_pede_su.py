@@ -202,6 +202,11 @@ def train(epoch, best_val_F1):
         current_loss = F.cross_entropy(output, target.long())
         loss += current_loss
         
+        
+        #Move tensors back to cpu
+        example = example.cpu()
+        rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
+        
         acc = edge_accuracy(logits, label)
         acc_train.append(acc)
         gp, ngp = edge_precision(logits, label)
@@ -242,6 +247,10 @@ def train(epoch, best_val_F1):
             output = logits.view(logits.size(0)*logits.size(1),-1)
             target = label.view(-1)
             loss_current = F.cross_entropy(output, target.long())
+            
+            #move tensors back to cpu
+            example = example.cpu()
+            rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
             
             acc = edge_accuracy(logits, label)
             acc_val.append(acc)
