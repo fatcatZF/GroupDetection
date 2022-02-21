@@ -114,20 +114,20 @@ else:
           "Testing (within this script) will throw an error.")
     
 #Load data
-data_folder = os.path.join("data/pedestrian", args.suffix)
+data_folder = os.path.join("data/pedestrian/all", args.suffix)
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
     examples_train = pickle.load(f)
 with open(os.path.join(data_folder, "labels_train.pkl"), 'rb') as f:
     labels_train = pickle.load(f)
-with open(os.path.join(data_folder, "labels_train_masked.pkl"),'rb') as f:
-    labels_train_masked = pickle.load(f)
+#with open(os.path.join(data_folder, "labels_train_masked.pkl"),'rb') as f:
+#    labels_train_masked = pickle.load(f)
 with open(os.path.join(data_folder, "tensors_valid.pkl"), 'rb') as f:
     examples_valid = pickle.load(f)
 with open(os.path.join(data_folder, "labels_valid.pkl"), 'rb') as f:
     labels_valid = pickle.load(f)
-with open(os.path.join(data_folder, "labels_valid_masked.pkl"), 'rb') as f:
-    labels_valid_masked = pickle.load(f)
+#with open(os.path.join(data_folder, "labels_valid_masked.pkl"), 'rb') as f:
+#    labels_valid_masked = pickle.load(f)
 with open(os.path.join(data_folder, "tensors_test.pkl"),'rb') as f:
     examples_test = pickle.load(f)
 with open(os.path.join(data_folder, "labels_test.pkl"), 'rb') as f:
@@ -185,7 +185,7 @@ def train(epoch, best_val_loss):
     kl_train = []
     mse_train = []
     acc_train = []
-    co_train = [] #contrastive loss
+    #co_train = [] #contrastive loss
     gp_train = [] #group precision
     ngp_train = [] #non-group precision
     gr_train = [] #group recall
@@ -203,32 +203,32 @@ def train(epoch, best_val_loss):
     for idx in training_indices:
         example = examples_train[idx]
         label = labels_train[idx]
-        label_masked = labels_train_masked[idx]
+        #label_masked = labels_train_masked[idx]
         #add batch size
         example = example.unsqueeze(0)
         label = label.unsqueeze(0)
-        label_masked = label_masked.unsqueeze(0)
+        #label_masked = label_masked.unsqueeze(0)
         num_atoms = example.size(1) #get number of atoms
         rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
         
         if args.cuda:
             example = example.cuda()
             label = label.cuda()
-            label_masked = label_masked.cuda()
+            #label_masked = label_masked.cuda()
             rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
             
         example = example.float()
         logits = encoder(example, rel_rec, rel_send)
         edges = F.gumbel_softmax(logits, tau=args.temp, hard=args.hard, dim=-1)
         prob = F.softmax(logits, dim=-1)
-        loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), label_masked.float()).mean()) #contrasitive loss
+        #loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), label_masked.float()).mean()) #contrasitive loss
         output = decoder(example, edges, rel_rec, rel_send,
                              args.prediction_steps)
         target = example[:, :, 1:, :]
         loss_nll = nll_gaussian(output, target, args.var)
         loss_kl = kl_categorical_uniform(prob, num_atoms, args.edge_types)
         
-        loss_current = loss_nll+loss_kl+loss_co
+        loss_current = loss_nll+loss_kl
         loss += loss_current
         
         acc = edge_accuracy(logits, label)
@@ -242,7 +242,7 @@ def train(epoch, best_val_loss):
         mse_train.append(F.mse_loss(output, target).item())
         nll_train.append(loss_nll.item())
         kl_train.append(loss_kl.item())
-        co_train.append(loss_co.item())
+        #co_train.append(loss_co.item())
         
         
     loss.backward()
@@ -253,7 +253,7 @@ def train(epoch, best_val_loss):
     nll_val = []
     kl_val = []
     mse_val = []
-    co_val = [] #contrasitive loss
+    #co_val = [] #contrasitive loss
     loss_val = []
     acc_val = []
     gp_val = [] #group precision
@@ -271,29 +271,29 @@ def train(epoch, best_val_loss):
         for idx in valid_indices:
             example = examples_valid[idx]
             label = labels_valid[idx]
-            label_masked = labels_valid_masked[idx]
+            #label_masked = labels_valid_masked[idx]
             #add batch size
             example = example.unsqueeze(0)
             label = label.unsqueeze(0)
-            label_masked = label_masked.unsqueeze(0)
+            #label_masked = label_masked.unsqueeze(0)
             num_atoms = example.size(1) #get number of atoms
             rel_rec, rel_send = create_edgeNode_relation(num_atoms, self_loops=False)
             if args.cuda:
                 example = example.cuda()
                 label = label.cuda()
-                label_masked = label_masked.cuda()
+                #label_masked = label_masked.cuda()
                 rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
             example = example.float()
             logits = encoder(example, rel_rec, rel_send)
             edges = F.gumbel_softmax(logits, tau=args.temp, hard=True, dim=-1)
             prob = F.softmax(logits, dim=-1)
             #Validation output uses teacher forcing
-            loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), label_masked.float()).mean()) #contrasitive loss
+            #loss_co = args.gc_weight*(torch.mul(prob[:,:,0].float(), label_masked.float()).mean()) #contrasitive loss
             output = decoder(example, edges, rel_rec, rel_send, 1)
             target = example[:, :, 1:, :]
             loss_nll = nll_gaussian(output, target, args.var)
             loss_kl = kl_categorical_uniform(prob, num_atoms, args.edge_types)
-            loss_current = loss_nll+loss_kl+loss_co
+            loss_current = loss_nll+loss_kl
             loss_val.append(loss_current.item())
             
             acc = edge_accuracy(logits, label)
@@ -307,13 +307,13 @@ def train(epoch, best_val_loss):
             mse_val.append(F.mse_loss(output, target).item())
             nll_val.append(loss_nll.item())
             kl_val.append(loss_kl.item())
-            co_val.append(loss_co.item())
+            #co_val.append(loss_co.item())
             
             
     print('Epoch: {:04d}'.format(epoch+1),
           'nll_train: {:.10f}'.format(np.mean(nll_train)),
           'kl_train: {:.10f}'.format(np.mean(kl_train)),
-          'co_train: {:.10f}'.format(np.mean(co_train)),
+          #'co_train: {:.10f}'.format(np.mean(co_train)),
           'acc_train: {:.10f}'.format(np.mean(acc_train)),
           'gr_train: {:.10f}'.format(np.mean(gr_train)),#average group recall
           'ngr_train: {:.10f}'.format(np.mean(ngr_train)), #average non-group recall
@@ -323,7 +323,7 @@ def train(epoch, best_val_loss):
           'nll_val: {:.10f}'.format(np.mean(nll_val)),
           'kl_val: {:.10f}'.format(np.mean(kl_val)),
           'mse_val: {:.10f}'.format(np.mean(mse_val)),
-          'co_val: {:.10f}'.format(np.mean(co_val)),
+          #'co_val: {:.10f}'.format(np.mean(co_val)),
           'acc_val: {:.10f}'.format(np.mean(acc_val)),
           'gr_val: {:.10f}'.format(np.mean(gr_val)),#average group recall
           'ngr_val: {:.10f}'.format(np.mean(ngr_val)), #average non-group recall
@@ -337,7 +337,7 @@ def train(epoch, best_val_loss):
         print('Epoch: {:04d}'.format(epoch+1),
               'nll_train: {:.10f}'.format(np.mean(nll_train)),
               'kl_train: {:.10f}'.format(np.mean(kl_train)),
-              'co_train: {:.10f}'.format(np.mean(co_train)),
+              #'co_train: {:.10f}'.format(np.mean(co_train)),
               'acc_train: {:.10f}'.format(np.mean(acc_train)),
               'gr_train: {:.10f}'.format(np.mean(gr_train)),#average group recall
               'ngr_train: {:.10f}'.format(np.mean(ngr_train)), #average non-group recall
@@ -347,7 +347,7 @@ def train(epoch, best_val_loss):
               'nll_val: {:.10f}'.format(np.mean(nll_val)),
               'kl_val: {:.10f}'.format(np.mean(kl_val)),
               'mse_val: {:.10f}'.format(np.mean(mse_val)),
-              'co_val: {:.10f}'.format(np.mean(co_val)),
+              #'co_val: {:.10f}'.format(np.mean(co_val)),
               'acc_val: {:.10f}'.format(np.mean(acc_val)),
               'gr_val: {:.10f}'.format(np.mean(gr_val)),#average group recall
               'ngr_val: {:.10f}'.format(np.mean(ngr_val)), #average non-group recall
