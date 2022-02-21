@@ -67,7 +67,7 @@ parser.add_argument('--save-folder', type=str, default='logs/trajsu',
 parser.add_argument('--load-folder', type=str, default='',
                     help='Where to load the trained model if finetunning. ' +
                          'Leave empty to train from scratch')
-parser.add_argument('--dims', type=int, default=4,
+parser.add_argument('--dims', type=int, default=2,
                     help='The number of input dimensions (position + velocity).')
 parser.add_argument('--timesteps', type=int, default=15,
                     help='The number of time steps per sample.')
@@ -229,9 +229,9 @@ def train(epoch, best_val_F1):
             Z = encoder(example, rel_rec, rel_send)
         else:
         
-            print("example shape: ", example.size())
-            print("rel_rec_sl shape: ", rel_rec_sl.size())
-            print("rel_send_sl shape: ", rel_send_sl.size())
+            #print("example shape: ", example.size())
+            #print("rel_rec_sl shape: ", rel_rec_sl.size())
+            #print("rel_send_sl shape: ", rel_send_sl.size())
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             
         logits = decoder(Z, rel_rec, rel_send)
