@@ -800,7 +800,6 @@ class GNNDecoder(nn.Module):
         n_out: group relationships
         """
         super(GNNDecoder, self).__init__()
-        self.factor = factor
         self.mlp1 = MLP(2*n_latent, n_hid, n_hid, do_prob)
         self.mlp2 = MLP(n_hid+n_latent, n_hid, n_hid, do_prob)
         self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)           
