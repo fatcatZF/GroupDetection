@@ -173,8 +173,12 @@ if args.cuda:
     decoder = decoder.cuda()
     
  
-optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
-                       lr=args.lr)
+#optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
+#                       lr=args.lr)
+
+optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters()),
+                      lr=args.lr)
+
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)    
 
@@ -203,7 +207,8 @@ def train(epoch, best_val_F1):
     
     optimizer.zero_grad()
     loss = 0.
-    
+    #count = 0
+    #update_threshold = int(len(examples_train)/4)
     for idx in training_indices:
         example = examples_train[idx]
         label = labels_train[idx]
