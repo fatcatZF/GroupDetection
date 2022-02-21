@@ -136,7 +136,7 @@ if args.encoder=="gtcn":
 elif args.encoder=="gcntcn":
     encoder = GCNTCNEncoder(args.dims, args.n_emb, args.c_hidden, args.c_out, args.kernel_size,
                             args.depth, args.n_latent,
-                            mode="su")
+                            )
     
 elif args.encoder=="lstm":
     encoder = LSTMEncoder(args.dims, args.n_emb, args.n_latent)
@@ -210,6 +210,7 @@ def train(epoch, best_val_F1):
         
         #add batch size
         example = example.unsqueeze(0)
+        #shape: [batch_size, n_atom, n_timesteps, n_dims]
         label = label.unsqueeze(0)
         
         num_atoms = example.size(1) #get number of atoms
@@ -228,6 +229,9 @@ def train(epoch, best_val_F1):
             Z = encoder(example, rel_rec, rel_send)
         else:
         
+            print("example shape: ", example.size())
+            print("rel_rec_sl shape: ", rel_rec_sl.size())
+            print("rel_send_sl shape: ", rel_send_sl.size())
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             
         logits = decoder(Z, rel_rec, rel_send)
