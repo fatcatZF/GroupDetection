@@ -694,7 +694,7 @@ class WavenetEncoder(nn.Module):
         self.factor = factor
         self.use_motion = use_motion
         self.cnn = GatedResCausalCNN(n_in*3, n_hid, n_hid, kernel_size, depth, do_prob)
-        self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
+        #self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
         self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
         self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)
         self.fc_out = nn.Linear(n_hid, n_out)
@@ -779,7 +779,8 @@ class WavenetEncoder(nn.Module):
         
         x = self.cnn(edges)
         x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
-        x = self.mlp1(x) #[batch_size, num_edges, n_hid]
+        x = F.leaky_relu(x)
+        #x = self.mlp1(x) #[batch_size, num_edges, n_hid]
         x_skip = x
         
         if self.factor:
