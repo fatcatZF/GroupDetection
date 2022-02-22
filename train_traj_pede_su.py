@@ -247,7 +247,7 @@ def train(epoch, best_val_F1):
         target = label.view(-1)
         
         loss_current = F.cross_entropy(output, target.long())
-        loss =+ loss_current
+        loss = loss+loss_current
         
         acc = edge_accuracy(logits, label)
         acc_train.append(acc)
