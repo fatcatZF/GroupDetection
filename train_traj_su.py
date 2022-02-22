@@ -75,6 +75,8 @@ parser.add_argument('--timesteps', type=int, default=49,
 
 parser.add_argument('--lr-decay', type=int, default=100,
                     help='After how epochs to decay LR by a factor of gamma.')
+parser.add_argument("--do-prob", type=float, default=0.3,
+                    help="Dropout probability of decoder.")
 parser.add_argument('--gamma', type=float, default=0.5,
                     help='LR decay factor.')
 parser.add_argument('--var', type=float, default=5e-5,
@@ -144,10 +146,10 @@ elif args.encoder=="tcn":
                          args.depth, args.n_latent)  
     
 if args.decoder=="gnn":
-    decoder = GNNDecoder(args.n_latent, args.decoder_hidden, args.edge_types)
+    decoder = GNNDecoder(args.n_latent, args.decoder_hidden, args.edge_types, do_prob=args.do_prob)
     
 elif args.decoder=="concat":
-    decoder = ConcatDecoder(args.n_latent, args.decoder_hidden, args.edge_types)
+    decoder = ConcatDecoder(args.n_latent, args.decoder_hidden, args.edge_types, do_prob=args.do_prob)
     
 else:
     decoder = InnerProdDecoder()
@@ -178,9 +180,9 @@ if args.cuda:
     tril_indices = tril_indices.cuda()
     
     
-optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),lr=args.lr)
+#optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),lr=args.lr)
 
-#optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters()),lr=args.lr)
+optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters()),lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
