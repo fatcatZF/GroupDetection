@@ -785,7 +785,7 @@ class WavenetEncoder(nn.Module):
         
         if self.factor:
             x = self.edge2node(x, rel_rec, rel_send)
-            x = self.mlp2(x)
+            x = x+self.mlp2(x)
             x = self.node2edge(x, rel_rec, rel_send)
             x = torch.cat([x, x_skip], dim=2) #Skip connection
             x = self.mlp3(x)
