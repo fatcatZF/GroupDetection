@@ -857,7 +857,7 @@ class GNNDecoder(nn.Module):
 class ConcatDecoder(nn.Module):
     def __init__(self, n_latent=32, n_hid=32, n_out=2, do_prob=0.):
         super(ConcatDecoder, self).__init__()
-        self.mlp = MLP(2*n_latent, n_hid, n_hid)
+        self.mlp = MLP(2*n_latent, n_hid, n_hid, do_prob)
         self.fc_out = nn.Linear(n_hid, n_out)
         self.init_weights()
         
