@@ -178,11 +178,9 @@ if args.cuda:
     tril_indices = tril_indices.cuda()
     
     
-#optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
-#                       lr=args.lr)
+optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),lr=args.lr)
 
-optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters()),
-                      lr=args.lr)
+#optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters()),lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 

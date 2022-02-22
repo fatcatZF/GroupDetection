@@ -224,7 +224,8 @@ def train(epoch, best_val_F1):
         ngr_train.append(ngr)
         
         loss_train.append(current_loss.item())
-        
+    
+    loss = loss/len(examples_train)
     loss.backward()
     optimizer.step()
     scheduler.step()

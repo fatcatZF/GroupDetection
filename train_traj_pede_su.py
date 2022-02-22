@@ -148,7 +148,7 @@ elif args.encoder=="gcnlstm":
     
 elif args.encoder=="tcn":
     encoder = TCNEncoder(args.dims, args.n_emb ,args.c_hidden, args.c_out, args.kernel_size,
-                         args.depth, args.n_latent)  
+                         args.depth, args.n_latent, mode="su")  
     
 if args.decoder=="gnn":
     decoder = GNNDecoder(args.n_latent, args.decoder_hidden, args.edge_types)
@@ -260,7 +260,8 @@ def train(epoch, best_val_F1):
         ngr_train.append(ngr)
         
         loss_train.append(loss_current.item())
-        
+    
+    loss = loss/len(examples_train)
     loss.backward()
     optimizer.step()
     scheduler.step()
