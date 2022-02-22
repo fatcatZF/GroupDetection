@@ -780,7 +780,7 @@ class WavenetEncoder(nn.Module):
         x = self.cnn(edges)
         x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
         x = F.leaky_relu(x)
-        #x = self.mlp1(x) #[batch_size, num_edges, n_hid]
+        x = x+self.mlp1(x) #[batch_size, num_edges, n_hid]
         x_skip = x
         
         if self.factor:
