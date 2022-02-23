@@ -33,7 +33,7 @@ parser.add_argument("--batch-size", type=int, default=128,
                     help="Number of samples per batch.")
 parser.add_argument("--lr", type=float, default=0.0005,
                     help="Initial learning rate.")
-parser.add_argument("--encoder-hidden", type=int, default=64,
+parser.add_argument("--encoder-hidden", type=int, default=128,
                     help="Number of hidden units.")
 parser.add_argument("--encoder", type=str, default="wavenet",
                     help="Type of encoder model.")
@@ -53,7 +53,7 @@ parser.add_argument("--edge-types", type=int, default=2,
                     help="The number of edge types to infer.")
 parser.add_argument("--dims", type=int, default=2,
                     help="The number of feature dimensions.")
-parser.add_argument("--kernel-size", type=int, default=3,
+parser.add_argument("--kernel-size", type=int, default=5,
                     help="Kernel size of WavenetNRI Encoder")
 
 parser.add_argument("--depth", type=int, default=1,
