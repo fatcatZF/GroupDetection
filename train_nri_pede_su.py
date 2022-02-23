@@ -182,8 +182,10 @@ def train(epoch, best_val_F1):
     
     optimizer.zero_grad()
     loss = 0.
+    count = 0
     
     for idx in training_indices:
+        
         example = examples_train[idx]
         label = labels_train[idx]
         #add batch dimension
@@ -206,6 +208,16 @@ def train(epoch, best_val_F1):
         
         current_loss = F.cross_entropy(output, target.long())
         loss += current_loss
+        count+=1
+        
+        if (idx+1)%args.batch_size==0 or idx==len(examples_train)-1:
+            loss = loss/count
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            count = 0
+            loss = 0.
+            optimizer.zero_grad()
         
         
         #Move tensors back to cpu
@@ -224,10 +236,10 @@ def train(epoch, best_val_F1):
         
         loss_train.append(current_loss.item())
     
-    loss = loss/len(examples_train)
-    loss.backward()
-    optimizer.step()
-    scheduler.step()
+    #loss = loss/len(examples_train)
+    #loss.backward()
+    #optimizer.step()
+    #scheduler.step()
     
     encoder.eval()
     
@@ -271,9 +283,16 @@ def train(epoch, best_val_F1):
             loss_val.append(loss_current.item())
             
             if gr==0 or gp==0:
-                F1 = 0
+                F1_g = 0.
             else:
-                F1 = 2*(gr*gp)/(gr+gp)
+                F1_g = 2*(gr*gp)/(gr+gp)
+                
+            if ngr==0 or ngp==0:
+                F1_ng = 0.
+            else:
+                F1_ng = 2*(ngr*ngp)/(ngr+ngp)
+                
+            F1 = 0.5*F1_g+0.5*F1_ng
                 
             F1_val.append(F1)
             

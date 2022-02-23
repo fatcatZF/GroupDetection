@@ -72,7 +72,7 @@ parser.add_argument('--dims', type=int, default=2,
 parser.add_argument('--timesteps', type=int, default=15,
                     help='The number of time steps per sample.')
 
-parser.add_argument('--lr-decay', type=int, default=100,
+parser.add_argument('--lr-decay', type=int, default=200,
                     help='After how epochs to decay LR by a factor of gamma.')
 parser.add_argument("--do-prob", type=float, default=0.3,
                     help="dropout probability of GNN.")
