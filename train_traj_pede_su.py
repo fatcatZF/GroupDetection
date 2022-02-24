@@ -333,9 +333,9 @@ def train(epoch, best_val_F1):
         loss_train.append(loss_current.item())
         
         if args.use_rnn:
-            loss_cross_train.append(loss_cross)
-            rec_train.append(loss_rec)
-            sc_train.append(loss_sc)
+            loss_cross_train.append(loss_cross.item())
+            rec_train.append(loss_rec.item())
+            sc_train.append(loss_sc.item())
             
     
     
@@ -405,9 +405,9 @@ def train(epoch, best_val_F1):
             
             loss_val.append(loss_current.item())
             if args.use_rnn:
-                loss_cross_val.append(loss_cross)
-                rec_val.append(loss_rec)
-                sc_val.append(loss_sc)
+                loss_cross_val.append(loss_cross.item())
+                rec_val.append(loss_rec.item())
+                sc_val.append(loss_sc.item())
             
             
             
@@ -598,9 +598,9 @@ def test():
             
             loss_test.append(loss_current.item())
             if args.use_rnn:
-                loss_cross_test.append(loss_cross)
-                rec_test.append(loss_rec)
-                sc_test.append(loss_sc)
+                loss_cross_test.append(loss_cross.item())
+                rec_test.append(loss_rec.item())
+                sc_test.append(loss_sc.item())
             
             
     
