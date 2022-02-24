@@ -88,7 +88,7 @@ parser.add_argument("--do-prob", type=float, default=0.3,
                     help="dropout probability of GNN.")
 parser.add_argument('--gamma', type=float, default=0.5,
                     help='LR decay factor.')
-parser.add_argument('--var', type=float, default=5e-5,
+parser.add_argument('--var', type=float, default=1e-1,
                     help='Output variance.')
 
 parser.add_argument("--sc-weight", type=float, default=0.2,
@@ -288,7 +288,7 @@ def train(epoch, best_val_F1):
             #print("rel_send_sl shape: ", rel_send_sl.size())
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             
-        logits = decoder(Z, rel_rec, rel_send)
+        logits = decoder(Z, rel_rec, rel_send) #when decoder is Innerproduct, logits denotes probabilities
         
         if args.use_rnn:
             example_rec = rnn_decoder(Z, example, teaching_rate=1.) #reconstruction            
@@ -301,10 +301,16 @@ def train(epoch, best_val_F1):
         target = label.view(-1)
         
         if args.use_rnn:
-            loss_cross = F.cross_entropy(output, target.long())
+            if isinstance(decoder, InnerProdDecoder):
+                loss_cross = F.binary_cross_entropy(output, target.long())
+            else:
+                loss_cross = F.cross_entropy(output, target.long())
             loss_current = loss_cross+loss_sc+loss_rec
         else:
-            loss_current = F.cross_entropy(output, target.long())
+            if isinstance(decoder, InnerProdDecoder):
+                loss_current = F.binary_cross_entropy(output, target.long())
+            else:
+                loss_current = F.cross_entropy(output, target.long())
         loss = loss+loss_current
         
         count += 1
@@ -389,10 +395,18 @@ def train(epoch, best_val_F1):
             
             #loss_current = F.cross_entropy(output, target.long())
             if args.use_rnn:
-                loss_cross = F.cross_entropy(output, target.long())
+                #loss_cross = F.cross_entropy(output, target.long())
+                if isinstance(decoder, InnerProdDecoder):
+                    loss_cross = F.binary_cross_entropy(output, target.long())
+                else:
+                    loss_cross = F.cross_entropy(output, target.long())
                 loss_current = loss_cross+loss_sc+loss_rec
             else:
-                loss_current = F.cross_entropy(output, target.long())
+                #loss_current = F.cross_entropy(output, target.long())
+                if isinstance(decoder, InnerProdDecoder):
+                    loss_current = F.binary_cross_entropy(output, target.long())
+                else:
+                    loss_current = F.cross_entropy(output, target.long())
             
             
             acc = edge_accuracy(logits, label)
@@ -568,7 +582,7 @@ def test():
             
                 Z = encoder(example, rel_rec_sl, rel_send_sl)
                 
-            logits = decoder(Z, rel_rec, rel_send)
+            logits = decoder(Z, rel_rec, rel_send) #logits denotes probabilities if decoder is innerprod decoder
             
             if args.use_rnn:
                 example_rec = rnn_decoder(Z, example, teaching_rate=1.) #reconstruction            
@@ -583,10 +597,20 @@ def test():
             #loss_current = F.cross_entropy(output, target.long())
             #loss_current = F.cross_entropy(output, target.long())
             if args.use_rnn:
-                loss_cross = F.cross_entropy(output, target.long())
+                #loss_cross = F.cross_entropy(output, target.long())
+                if isinstance(decoder, InnerProdDecoder):
+                    loss_cross = F.binary_cross_entropy(output, target.long())
+                else:
+                    loss_cross = F.cross_entropy(output, target.long())
                 loss_current = loss_cross+loss_sc+loss_rec
             else:
-                loss_current = F.cross_entropy(output, target.long())
+                
+                #loss_current = F.cross_entropy(output, target.long())
+                #loss_current = F.cross_entropy(output, target.long())
+                if isinstance(decoder, InnerProdDecoder):
+                    loss_current = F.binary_cross_entropy(output, target.long())
+                else:
+                    loss_current = F.cross_entropy(output, target.long())
             
             acc = edge_accuracy(logits, label)
             acc_test.append(acc)
