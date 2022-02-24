@@ -302,13 +302,13 @@ def train(epoch, best_val_F1):
         
         if args.use_rnn:
             if isinstance(decoder, InnerProdDecoder):
-                loss_cross = F.binary_cross_entropy(output, target.long())
+                loss_cross = F.binary_cross_entropy(output.view(-1), target.long())
             else:
                 loss_cross = F.cross_entropy(output, target.long())
             loss_current = loss_cross+loss_sc+loss_rec
         else:
             if isinstance(decoder, InnerProdDecoder):
-                loss_current = F.binary_cross_entropy(output, target.long())
+                loss_current = F.binary_cross_entropy(output.view(-1), target.long())
             else:
                 loss_current = F.cross_entropy(output, target.long())
         loss = loss+loss_current
@@ -397,14 +397,14 @@ def train(epoch, best_val_F1):
             if args.use_rnn:
                 #loss_cross = F.cross_entropy(output, target.long())
                 if isinstance(decoder, InnerProdDecoder):
-                    loss_cross = F.binary_cross_entropy(output, target.long())
+                    loss_cross = F.binary_cross_entropy(output.view(-1), target.long())
                 else:
                     loss_cross = F.cross_entropy(output, target.long())
                 loss_current = loss_cross+loss_sc+loss_rec
             else:
                 #loss_current = F.cross_entropy(output, target.long())
                 if isinstance(decoder, InnerProdDecoder):
-                    loss_current = F.binary_cross_entropy(output, target.long())
+                    loss_current = F.binary_cross_entropy(output.view(-1), target.long())
                 else:
                     loss_current = F.cross_entropy(output, target.long())
             
@@ -599,7 +599,7 @@ def test():
             if args.use_rnn:
                 #loss_cross = F.cross_entropy(output, target.long())
                 if isinstance(decoder, InnerProdDecoder):
-                    loss_cross = F.binary_cross_entropy(output, target.long())
+                    loss_cross = F.binary_cross_entropy(output.view(-1), target.long())
                 else:
                     loss_cross = F.cross_entropy(output, target.long())
                 loss_current = loss_cross+loss_sc+loss_rec
@@ -608,7 +608,7 @@ def test():
                 #loss_current = F.cross_entropy(output, target.long())
                 #loss_current = F.cross_entropy(output, target.long())
                 if isinstance(decoder, InnerProdDecoder):
-                    loss_current = F.binary_cross_entropy(output, target.long())
+                    loss_current = F.binary_cross_entropy(output.view(-1), target.long())
                 else:
                     loss_current = F.cross_entropy(output, target.long())
             
