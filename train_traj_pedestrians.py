@@ -307,16 +307,16 @@ def train(epoch, best_val_loss, initial_teaching_rate):
            
             sc_val.append(loss_sc.item())
             
-            print('Epoch: {:04d}'.format(epoch+1),
-                  'nll_train: {:.10f}'.format(np.mean(nll_train)),
-                  'mse_train: {:.10f}'.format(np.mean(mse_train)),
-                  "sc_train: {:.10f}".format(np.mean(sc_train)),
-                  'nll_val: {:.10f}'.format(np.mean(nll_val)),
-                  'mse_val: {:.10f}'.format(np.mean(mse_val)),
-                  "sc_val: {:.10f}".format(np.mean(sc_val)),
-                  "teaching rate {:.10f}".format(teaching_rate),
-                  'time: {:.4f}s'.format(time.time() - t))
-            if args.save_folder and np.mean(loss_val) < best_val_loss and initial_teaching_rate<=args.min_teaching:
+    print('Epoch: {:04d}'.format(epoch+1),
+          'nll_train: {:.10f}'.format(np.mean(nll_train)),
+          'mse_train: {:.10f}'.format(np.mean(mse_train)),
+          "sc_train: {:.10f}".format(np.mean(sc_train)),
+          'nll_val: {:.10f}'.format(np.mean(nll_val)),
+          'mse_val: {:.10f}'.format(np.mean(mse_val)),
+          "sc_val: {:.10f}".format(np.mean(sc_val)),
+          "teaching rate {:.10f}".format(teaching_rate),
+          'time: {:.4f}s'.format(time.time() - t))
+    if args.save_folder and np.mean(loss_val) < best_val_loss and initial_teaching_rate<=args.min_teaching:
                 #torch.save(encoder.state_dict(), encoder_file)
                 torch.save(encoder, encoder_file)
                 #torch.save(decoder.state_dict(), decoder_file)
@@ -332,7 +332,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
                       "teaching rate {:.10f}".format(teaching_rate),
                       'time: {:.4f}s'.format(time.time() - t), file=log)
                 log.flush()
-            return np.mean(loss_val), teaching_rate
+    return np.mean(loss_val), teaching_rate
         
 
 def test():

@@ -91,6 +91,8 @@ parser.add_argument('--var', type=float, default=1e-1,
 
 parser.add_argument("--sc-weight", type=float, default=0.2,
                     help="Sparse Constraint Weight.")
+parser.add_argument("--group-weight", type=float, default=0.5,
+                    help="group Weight.")
 
 
 args = parser.parse_args()
@@ -180,7 +182,9 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
 
 
 
-
+cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])
+if args.cuda:
+    cross_entropy_weight = cross_entropy_weight.cuda()
 
 
 def train(epoch, best_val_F1):
@@ -244,7 +248,7 @@ def train(epoch, best_val_F1):
         if isinstance(decoder, InnerProdDecoder):
             loss_current = F.binary_cross_entropy(output.view(-1), target.float())
         else:
-            loss_current = F.cross_entropy(output, target.long())
+            loss_current = F.cross_entropy(output, target.long(),weight=cross_entropy_weight)
             
         loss = loss+loss_current
         
@@ -327,7 +331,7 @@ def train(epoch, best_val_F1):
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_current = F.cross_entropy(output, target.long())
+                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 
             
             if isinstance(decoder, InnerProdDecoder):
@@ -369,21 +373,21 @@ def train(epoch, best_val_F1):
             F1_val.append(F1)
             
             
-            print("Epoch: {:04d}".format(epoch),
-                  "loss_train: {:.10f}".format(np.mean(loss_train)),
-                  "acc_train: {:.10f}".format(np.mean(acc_train)),
-                  "gp_train: {:.10f}".format(np.mean(gp_train)),
-                  "ngp_train: {:.10f}".format(np.mean(ngp_train)),
-                  "gr_train: {:.10f}".format(np.mean(gr_train)),
-                  "ngr_train: {:.10f}".format(np.mean(ngr_train)),
-                  "loss_val: {:.10f}".format(np.mean(loss_val)),
-                  "acc_val: {:.10f}".format(np.mean(acc_val)),
-                  "gp_val: {:.10f}".format(np.mean(gp_val)),
-                  "ngp_val: {:.10f}".format(np.mean(ngp_val)),
-                  "gr_val: {:.10f}".format(np.mean(gr_val)),
-                  "ngr_val: {:.10f}".format(np.mean(ngr_val)),
-                  "F1_val: {:.10f}".format(np.mean(F1_val)))
-            if args.save_folder and np.mean(F1_val) > best_val_F1:
+        print("Epoch: {:04d}".format(epoch),
+              "loss_train: {:.10f}".format(np.mean(loss_train)),
+              "acc_train: {:.10f}".format(np.mean(acc_train)),
+              "gp_train: {:.10f}".format(np.mean(gp_train)),
+              "ngp_train: {:.10f}".format(np.mean(ngp_train)),
+              "gr_train: {:.10f}".format(np.mean(gr_train)),
+              "ngr_train: {:.10f}".format(np.mean(ngr_train)),
+              "loss_val: {:.10f}".format(np.mean(loss_val)),
+              "acc_val: {:.10f}".format(np.mean(acc_val)),
+              "gp_val: {:.10f}".format(np.mean(gp_val)),
+              "ngp_val: {:.10f}".format(np.mean(ngp_val)),
+              "gr_val: {:.10f}".format(np.mean(gr_val)),
+              "ngr_val: {:.10f}".format(np.mean(ngr_val)),
+              "F1_val: {:.10f}".format(np.mean(F1_val)))
+        if args.save_folder and np.mean(F1_val) > best_val_F1:
                 torch.save(encoder, encoder_file)
                 torch.save(decoder, decoder_file)
                 print("Best model so far, saving...")
@@ -459,7 +463,7 @@ def test():
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_current = F.cross_entropy(output, target.long())
+                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 
             if isinstance(decoder, InnerProdDecoder):
                 acc = edge_accuracy_prob(logits, label)
