@@ -201,7 +201,8 @@ if args.load_folder:
 if args.cuda:
     encoder = encoder.cuda()
     decoder = decoder.cuda()
-    rnn_decoder = rnn_decoder.cuda()
+    if args.use_rnn:
+        rnn_decoder = rnn_decoder.cuda()
     
  
 #optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
