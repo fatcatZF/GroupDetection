@@ -459,7 +459,7 @@ class GraphTCNEncoder(nn.Module):
         if self.mode=="un":
             h = F.softsign(self.fc_h(pred_attention))
         else:
-            h = F.relu(self.fc_h(pred_attention))
+            h = F.leaky_relu(self.fc_h(pred_attention))
         
         return h
         

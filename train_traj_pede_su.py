@@ -43,10 +43,20 @@ parser.add_argument("--encoder", type=str, default="gtcn",
                     help="Type of encoder.")
 parser.add_argument("--decoder", type=str, default="gnn",
                     help="Type of decoder.")
+parser.add_argument("--rnn-decoder", type=str, default="gru",
+                    help="Type of RNN Decoder.")
+parser.add_argument("--use-rnn", action="store_true", default=False,
+                    help="whether use RNN decoder.")
+
 parser.add_argument("--decoder-hidden", type=int, default=128,
                     help="hidden of decoder.")
 parser.add_argument("--edge-types", type=int, default=2,
                     help="Number of edge types.")
+
+parser.add_argument("--rnn-emb", type=int, default=16,
+                    help = "RNN decoder embedding")
+parser.add_argument("--rnn-noise", type=int, default=4,
+                    help = "Noise dimensions of RNN Decoder.")
 
 parser.add_argument("--c-hidden", type=int, default=64,
                     help="number of hidden kernels of CNN")
@@ -80,6 +90,9 @@ parser.add_argument('--gamma', type=float, default=0.5,
                     help='LR decay factor.')
 parser.add_argument('--var', type=float, default=5e-5,
                     help='Output variance.')
+
+parser.add_argument("--sc-weight", type=float, default=0.2,
+                    help="Sparse Constraint Weight.")
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -161,18 +174,34 @@ elif args.decoder=="concat":
 else:
     decoder = InnerProdDecoder()
     
+    
+  
+if args.use_rnn:
+    rnn_decoder = RNNDecoder(args.n_latent, args.dims, args.rnn_emb, args.rnn_noise,args.rnn_decoder,
+                             reverse=False)
+  
+    
 
 if args.load_folder:
     encoder_file = os.path.join(args.load_folder, 'traj_encoder.pt')
-    encoder.load_state_dict(torch.load(encoder_file))
+    #encoder.load_state_dict(torch.load(encoder_file))
+    encoder = torch.load(encoder_file)
     decoder_file = os.path.join(args.load_folder, 'traj_decoder.pt')
-    decoder.load_state_dict(torch.load(decoder_file))
+    #decoder.load_state_dict(torch.load(decoder_file))
+    decoder = torch.load(decoder_file)
+    if args.use_rnn:
+        rnn_decoder_file = os.path.join(args.load_folder, "rnn_decoder.pt")
+        rnn_decoder = torch.load(rnn_decoder_file)
+    
+    
+    
     args.save_folder = False
     
 
 if args.cuda:
     encoder = encoder.cuda()
     decoder = decoder.cuda()
+    rnn_decoder = rnn_decoder.cuda()
     
  
 #optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
@@ -180,6 +209,10 @@ if args.cuda:
 
 optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters()),
                       lr=args.lr)
+if args.use_rnn:
+    optimizer = optim.SGD(list(encoder.parameters())+list(decoder.parameters())+list(rnn_decoder.parameters()),
+                          lr=args.lr)
+    
 
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)    
@@ -201,8 +234,19 @@ def train(epoch, best_val_F1):
     ngr_val = []
     F1_val = []
     
+    if args.use_rnn:
+        loss_cross_train = [] #cross entropy loss
+        loss_cross_val = [] #val cross entropy loss
+        rec_train = [] #reconstruction loss for rnn decoder
+        rec_val = [] #reconstruction loss
+        sc_train = [] #sparse constraint
+        sc_val = []
+    
     encoder.train()
     decoder.train()
+    if args.use_rnn:
+        rnn_decoder.train()
+    
     
     training_indices = np.arange(len(examples_train))
     np.random.shuffle(training_indices)
@@ -243,12 +287,21 @@ def train(epoch, best_val_F1):
             
         logits = decoder(Z, rel_rec, rel_send)
         
+        if args.use_rnn:
+            example_rec = rnn_decoder(Z, example, teaching_rate=1.) #reconstruction            
+            loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
+            loss_rec = nll_gaussian(example_rec[:,:,1:,:], example[:,:,1:,:], args.var)
+        
         
         #Flatten batch dim
         output = logits.view(logits.size(0)*logits.size(1),-1)
         target = label.view(-1)
         
-        loss_current = F.cross_entropy(output, target.long())
+        if args.use_rnn:
+            loss_cross = F.cross_entropy(output, target.long())
+            loss_current = loss_cross+loss_sc+loss_rec
+        else:
+            loss_current = F.cross_entropy(output, target.long())
         loss = loss+loss_current
         
         count += 1
@@ -277,14 +330,19 @@ def train(epoch, best_val_F1):
         ngr_train.append(ngr)
         
         loss_train.append(loss_current.item())
+        
+        if args.use_rnn:
+            loss_cross_train.append(loss_cross)
+            rec_train.append(loss_rec)
+            sc_train.append(loss_sc)
+            
     
-    #loss = loss/len(examples_train)
-    #loss.backward()
-    #optimizer.step()
-    #scheduler.step()
+    
     
     encoder.eval()
     decoder.eval()
+    if args.use_rnn:
+        rnn_decoder.eval()
     
     valid_indices = np.arange(len(examples_valid))
     
@@ -316,11 +374,23 @@ def train(epoch, best_val_F1):
                 
             logits = decoder(Z, rel_rec, rel_send)
             
+            if args.use_rnn:
+                example_rec = rnn_decoder(Z, example, teaching_rate=1.) #reconstruction            
+                loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
+                loss_rec = nll_gaussian(example_rec[:,:,1:,:], example[:,:,1:,:], args.var)
+            
+            
             #Flatten batch dim
             output = logits.view(logits.size(0)*logits.size(1),-1)
             target = label.view(-1)
             
-            loss_current = F.cross_entropy(output, target.long())
+            #loss_current = F.cross_entropy(output, target.long())
+            if args.use_rnn:
+                loss_cross = F.cross_entropy(output, target.long())
+                loss_current = loss_cross+loss_sc+loss_rec
+            else:
+                loss_current = F.cross_entropy(output, target.long())
+            
             
             acc = edge_accuracy(logits, label)
             acc_val.append(acc)
@@ -333,6 +403,12 @@ def train(epoch, best_val_F1):
             ngr_val.append(ngr)
             
             loss_val.append(loss_current.item())
+            if args.use_rnn:
+                loss_cross_val.append(loss_cross)
+                rec_val.append(loss_rec)
+                sc_val.append(loss_sc)
+            
+            
             
             if gr==0 or gp==0:
                 F1_g = 0
@@ -348,25 +424,31 @@ def train(epoch, best_val_F1):
             F1 = 0.5*(F1_g+F1_ng)
                 
             F1_val.append(F1)
-            
-    print("Epoch: {:04d}".format(epoch),
-          "loss_train: {:.10f}".format(np.mean(loss_train)),
-          "acc_train: {:.10f}".format(np.mean(acc_train)),
-          "gp_train: {:.10f}".format(np.mean(gp_train)),
-          "ngp_train: {:.10f}".format(np.mean(ngp_train)),
-          "gr_train: {:.10f}".format(np.mean(gr_train)),
-          "ngr_train: {:.10f}".format(np.mean(ngr_train)),
-          "loss_val: {:.10f}".format(np.mean(loss_val)),
-          "acc_val: {:.10f}".format(np.mean(acc_val)),
-          "gp_val: {:.10f}".format(np.mean(gp_val)),
-          "ngp_val: {:.10f}".format(np.mean(ngp_val)),
-          "gr_val: {:.10f}".format(np.mean(gr_val)),
-          "ngr_val: {:.10f}".format(np.mean(ngr_val)),
-          "F1_val: {:.10f}".format(np.mean(F1_val)))
-    if args.save_folder and np.mean(F1_val) > best_val_F1:
-        torch.save(encoder, encoder_file)
-        torch.save(decoder, decoder_file)
-        print("Best model so far, saving...")
+    
+    if args.use_rnn:
+             print("Epoch: {:04d}".format(epoch),
+                   "loss_train: {:.10f}".format(np.mean(loss_train)),
+                   "cross_train: {:.10f}".format(np.mean(loss_cross_train)),
+                   "rec_train: {:.10f}".format(np.mean(rec_train)),
+                   "sc_train: {:.10f}".format(np.mean(sc_train)),
+                   "acc_train: {:.10f}".format(np.mean(acc_train)),
+                   "gp_train: {:.10f}".format(np.mean(gp_train)),
+                   "ngp_train: {:.10f}".format(np.mean(ngp_train)),
+                   "gr_train: {:.10f}".format(np.mean(gr_train)),
+                   "ngr_train: {:.10f}".format(np.mean(ngr_train)),
+                   "loss_val: {:.10f}".format(np.mean(loss_val)),
+                   "cross_val: {:.10f}".format(np.mean(loss_cross_val)),
+                   "rec_val: {:.10f}".format(np.mean(rec_val)),
+                   "sc_val: {:.10f}".format(np.mean(sc_val)),
+                   "acc_val: {:.10f}".format(np.mean(acc_val)),
+                   "gp_val: {:.10f}".format(np.mean(gp_val)),
+                   "ngp_val: {:.10f}".format(np.mean(ngp_val)),
+                   "gr_val: {:.10f}".format(np.mean(gr_val)),
+                   "ngr_val: {:.10f}".format(np.mean(ngr_val)),
+                   "F1_val: {:.10f}".format(np.mean(F1_val)))   
+    
+    
+    else:
         print("Epoch: {:04d}".format(epoch),
               "loss_train: {:.10f}".format(np.mean(loss_train)),
               "acc_train: {:.10f}".format(np.mean(acc_train)),
@@ -380,8 +462,51 @@ def train(epoch, best_val_F1):
               "ngp_val: {:.10f}".format(np.mean(ngp_val)),
               "gr_val: {:.10f}".format(np.mean(gr_val)),
               "ngr_val: {:.10f}".format(np.mean(ngr_val)),
-              "F1_val: {:.10f}".format(np.mean(F1_val)),
-              file=log)
+              "F1_val: {:.10f}".format(np.mean(F1_val)))
+    if args.save_folder and np.mean(F1_val) > best_val_F1:
+        torch.save(encoder, encoder_file)
+        torch.save(decoder, decoder_file)
+        if args.use_rnn:
+            torch.save(rnn_decoder, rnn_decoder_file)
+        print("Best model so far, saving...")
+        
+        if args.use_rnn:
+            print("Epoch: {:04d}".format(epoch),
+                  "loss_train: {:.10f}".format(np.mean(loss_train)),
+                  "cross_train: {:.10f}".format(np.mean(loss_cross_train)),
+                  "rec_train: {:.10f}".format(np.mean(rec_train)),
+                  "sc_train: {:.10f}".format(np.mean(sc_train)),
+                  "acc_train: {:.10f}".format(np.mean(acc_train)),
+                  "gp_train: {:.10f}".format(np.mean(gp_train)),
+                  "ngp_train: {:.10f}".format(np.mean(ngp_train)),
+                  "gr_train: {:.10f}".format(np.mean(gr_train)),
+                  "ngr_train: {:.10f}".format(np.mean(ngr_train)),
+                  "loss_val: {:.10f}".format(np.mean(loss_val)),
+                  "cross_val: {:.10f}".format(np.mean(loss_cross_val)),
+                  "rec_val: {:.10f}".format(np.mean(rec_val)),
+                  "sc_val: {:.10f}".format(np.mean(sc_val)),
+                  "acc_val: {:.10f}".format(np.mean(acc_val)),
+                  "gp_val: {:.10f}".format(np.mean(gp_val)),
+                  "ngp_val: {:.10f}".format(np.mean(ngp_val)),
+                  "gr_val: {:.10f}".format(np.mean(gr_val)),
+                  "ngr_val: {:.10f}".format(np.mean(ngr_val)),
+                  "F1_val: {:.10f}".format(np.mean(F1_val)), file=log)
+        else:
+            print("Epoch: {:04d}".format(epoch),
+                  "loss_train: {:.10f}".format(np.mean(loss_train)),
+                  "acc_train: {:.10f}".format(np.mean(acc_train)),
+                  "gp_train: {:.10f}".format(np.mean(gp_train)),
+                  "ngp_train: {:.10f}".format(np.mean(ngp_train)),
+                  "gr_train: {:.10f}".format(np.mean(gr_train)),
+                  "ngr_train: {:.10f}".format(np.mean(ngr_train)),
+                  "loss_val: {:.10f}".format(np.mean(loss_val)),
+                  "acc_val: {:.10f}".format(np.mean(acc_val)),
+                  "gp_val: {:.10f}".format(np.mean(gp_val)),
+                  "ngp_val: {:.10f}".format(np.mean(ngp_val)),
+                  "gr_val: {:.10f}".format(np.mean(gr_val)),
+                  "ngr_val: {:.10f}".format(np.mean(ngr_val)),
+                  "F1_val: {:.10f}".format(np.mean(F1_val)),
+                  file=log)
         log.flush()
         
     return np.mean(F1_val)
@@ -397,11 +522,19 @@ def test():
     ngp_test = []
     gr_test = []
     ngr_test = []
+    if args.use_rnn:
+        loss_cross_test = [] #cross entropy loss
+        rec_test = [] #reconstruction loss for rnn decoder
+        sc_test = [] #sparse constraint
     
     encoder = torch.load(encoder_file)
     decoder = torch.load(decoder_file)
     encoder.eval()
     decoder.eval()
+    
+    if args.use_rnn:
+        rnn_decoder = torch.load(rnn_decoder_file)
+        rnn_decoder.eval()
     
     test_indices = np.arange(len(examples_test))
     
@@ -434,11 +567,23 @@ def test():
                 
             logits = decoder(Z, rel_rec, rel_send)
             
+            if args.use_rnn:
+                example_rec = rnn_decoder(Z, example, teaching_rate=1.) #reconstruction            
+                loss_sc = args.sc_weight*(torch.norm(Z, p=1, dim=-1).sum())/(Z.size(0)*Z.size(1))
+                loss_rec = nll_gaussian(example_rec[:,:,1:,:], example[:,:,1:,:], args.var)
+            
+            
             #Flatten batch dim
             output = logits.view(logits.size(0)*logits.size(1),-1)
             target = label.view(-1)
             
-            loss_current = F.cross_entropy(output, target.long())
+            #loss_current = F.cross_entropy(output, target.long())
+            #loss_current = F.cross_entropy(output, target.long())
+            if args.use_rnn:
+                loss_cross = F.cross_entropy(output, target.long())
+                loss_current = loss_cross+loss_sc+loss_rec
+            else:
+                loss_current = F.cross_entropy(output, target.long())
             
             acc = edge_accuracy(logits, label)
             acc_test.append(acc)
@@ -451,17 +596,33 @@ def test():
             ngr_test.append(ngr)
             
             loss_test.append(loss_current.item())
+            if args.use_rnn:
+                loss_cross_test.append(loss_cross)
+                rec_test.append(loss_rec)
+                sc_test.append(loss_sc)
+            
             
     
     print('--------------------------------')
     print('--------Testing-----------------')
     print('--------------------------------')
-    print('acc_test: {:.10f}'.format(np.mean(acc_test)),
-          "gp_test: {:.10f}".format(np.mean(gp_test)),
-          "ngp_test: {:.10f}".format(np.mean(ngp_test)),
-          "gr_test: {:.10f}".format(np.mean(gr_test)),
-          "ngr_test: {:.10f}".format(np.mean(ngr_test))
-          )
+    if args.use_rnn:
+        print('acc_test: {:.10f}'.format(np.mean(acc_test)),
+              "gp_test: {:.10f}".format(np.mean(gp_test)),
+              "ngp_test: {:.10f}".format(np.mean(ngp_test)),
+              "gr_test: {:.10f}".format(np.mean(gr_test)),
+              "ngr_test: {:.10f}".format(np.mean(ngr_test)),
+              "cross_entropy: {:.10f}".format(np.mean(loss_cross_test)),
+              "reconstruction loss: {:.10f}".format(np.mean(rec_test)),
+              "sparse constraint loss: {:.10f}".format(np.mean(sc_test))
+              )
+    else:    
+        print('acc_test: {:.10f}'.format(np.mean(acc_test)),
+              "gp_test: {:.10f}".format(np.mean(gp_test)),
+              "ngp_test: {:.10f}".format(np.mean(ngp_test)),
+              "gr_test: {:.10f}".format(np.mean(gr_test)),
+              "ngr_test: {:.10f}".format(np.mean(ngr_test))
+              )
             
     
     
