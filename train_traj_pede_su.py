@@ -325,8 +325,8 @@ def train(epoch, best_val_F1):
             optimizer.zero_grad()
         
         #Move tensors back to cpu
-        example = example.cpu()
-        rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
+        #example = example.cpu()
+        #rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
         
         
         if isinstance(decoder, InnerProdDecoder):
