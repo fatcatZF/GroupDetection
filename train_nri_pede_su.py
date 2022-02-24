@@ -45,7 +45,7 @@ parser.add_argument("--use-motion", action="store_true", default=False,
                     help="use increments")
 parser.add_argument("--encoder-dropout", type=float, default=0.3,
                     help="Dropout rate (1-keep probability).")
-parser.add_argument("--save-folder", type=str, default="logs/nrisu",
+parser.add_argument("--save-folder", type=str, default="logs/nripedsu",
                     help="Where to save the trained model, leave empty to not save anything.")
 parser.add_argument("--load-folder", type=str, default='', 
                     help="Where to load the trained model.")
@@ -224,6 +224,7 @@ def train(epoch, best_val_F1):
         example = example.cpu()
         rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
         
+    
         acc = edge_accuracy(logits, label)
         acc_train.append(acc)
         gp, ngp = edge_precision(logits, label)

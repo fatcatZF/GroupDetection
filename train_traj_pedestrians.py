@@ -67,7 +67,7 @@ parser.add_argument("--min-teaching", type=float, default=1.,
 
 parser.add_argument('--suffix', type=str, default='ETH',
                     help='Suffix for training data ".')
-parser.add_argument('--save-folder', type=str, default='logs/traj',
+parser.add_argument('--save-folder', type=str, default='logs/trajped',
                     help='Where to save the trained model, leave empty to not save anything.')
 parser.add_argument('--load-folder', type=str, default='',
                     help='Where to load the trained model if finetunning. ' +
@@ -197,7 +197,7 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     
     optimizer.zero_grad()
     loss = 0.
-    
+    count = 0
     for idx in training_indices:
         example = examples_train[idx]
         label = labels_train[idx]
@@ -241,16 +241,24 @@ def train(epoch, best_val_loss, initial_teaching_rate):
         
         loss_current = loss_nll+loss_sc
         loss += loss_current
+        count+=1
+        
+        if (idx+1)%args.batch_size==0 or idx==len(examples_train)-1:
+            loss = loss/count
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            count = 0
+            loss = 0.
+            optimizer.zero_grad()
+        
+        
         
         mse_train.append(loss_mse.item())
         nll_train.append(loss_nll.item())
        
         sc_train.append(loss_sc.item())
         
-    
-    loss.backward()
-    optimizer.step()
-    scheduler.step()
     
     nll_val = []
     mse_val = []

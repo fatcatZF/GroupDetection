@@ -72,7 +72,7 @@ parser.add_argument("--kernel-size", type=int, default=3,
 
 parser.add_argument('--suffix', type=str, default='ETH',
                     help='Suffix for training data ".')
-parser.add_argument('--save-folder', type=str, default='logs/trajsu',
+parser.add_argument('--save-folder', type=str, default='logs/trajpedsu',
                     help='Where to save the trained model, leave empty to not save anything.')
 parser.add_argument('--load-folder', type=str, default='',
                     help='Where to load the trained model if finetunning. ' +
@@ -257,7 +257,7 @@ def train(epoch, best_val_F1):
     optimizer.zero_grad()
     loss = 0.
     count = 0
-    #update_threshold = int(len(examples_train)/4)
+    
     for idx in training_indices:
         example = examples_train[idx]
         label = labels_train[idx]
@@ -283,9 +283,6 @@ def train(epoch, best_val_F1):
             Z = encoder(example, rel_rec, rel_send)
         else:
         
-            #print("example shape: ", example.size())
-            #print("rel_rec_sl shape: ", rel_rec_sl.size())
-            #print("rel_send_sl shape: ", rel_send_sl.size())
             Z = encoder(example, rel_rec_sl, rel_send_sl)
             
         logits = decoder(Z, rel_rec, rel_send) #when decoder is Innerproduct, logits denotes probabilities
