@@ -285,10 +285,6 @@ def train(epoch, best_val_F1):
             
         loss_train.append(loss_current.item())
         
-        if args.use_rnn:
-            loss_cross_train.append(loss_cross.item())
-            rec_train.append(loss_rec.item())
-            sc_train.append(loss_sc.item())
             
             
     decoder.eval()
