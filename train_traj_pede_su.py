@@ -115,6 +115,8 @@ if args.save_folder:
     meta_file = os.path.join(save_folder, 'metadata.pkl')
     encoder_file = os.path.join(save_folder, 'traj_encoder.pt')
     decoder_file = os.path.join(save_folder, 'traj_decoder.pt')
+    if args.use_rnn:
+        rnn_decoder_file = os.path.join(save_folder, "rnn_decoder.pt")
     
     log_file = os.path.join(save_folder, 'log.txt')
     log = open(log_file, 'w')
