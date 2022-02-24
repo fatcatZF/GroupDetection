@@ -43,7 +43,7 @@ parser.add_argument("--encoder", type=str, default="gtcn",
                     help="Type of encoder.")
 parser.add_argument("--decoder", type=str, default="gnn",
                     help="Type of decoder.")
-parser.add_argument("--decoder-hidden", type=int, default=32,
+parser.add_argument("--decoder-hidden", type=int, default=128,
                     help="hidden of decoder.")
 parser.add_argument("--edge-types", type=int, default=2,
                     help="Number of edge types.")
