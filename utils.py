@@ -193,6 +193,18 @@ def edge_accuracy(preds, target):
         target.float().data.view_as(preds)).cpu().sum()
     return np.float(correct) / (target.size(0) * target.size(1))
 
+def edge_accuracy_prob(preds, target, threshold=0.5):
+    """compute pairwise accuracy based on prob
+    args:
+        preds:[batch_size, n_edges]
+        target:[batch_size, n_edges]        
+    """
+    preds = (preds>threshold).int()
+    correct = preds.float().data.eq(
+        target.float().data.view_as(preds)).cpu().sum()
+    return np.float(correct)/(target.size(0)*target.size(1))
+
+
 
 def edge_precision(preds, target):
     """compute pairwise group/non-group recall"""
@@ -213,11 +225,32 @@ def edge_precision(preds, target):
     #group_precision = ((target[preds==1]==1).cpu().sum())/preds[preds==1].cpu().sum()
     #non_group_precision = ((target[preds==0]==0).cpu().sum())/(preds[preds==0]==0).cpu().sum()
     return group_precision, non_group_precision
+
+def edge_precision_prob(preds, target, threshold=0.5):
+    """Compute pairwise group/non-group precision"""
+    preds = (preds>threshold).int()
+    true_possitive = ((preds[target==1]==1).cpu().sum()).item()
+    total_possitive = ((preds[preds==1]).cpu().sum()).item()
+    if total_possitive==true_possitive:
+        group_precision = 1
+    true_negative = ((preds[target==0]==0).cpu().sum()).item()
+    total_negative = ((preds[preds==0]==0).cpu().sum()).item()
+    if total_negative==true_negative:
+        non_group_precision = 1
+    if total_possitive>0:
+        group_precision = true_possitive/total_possitive
+    if total_negative>0:
+        non_group_precision = true_negative/total_negative
+       
+    #group_precision = ((target[preds==1]==1).cpu().sum())/preds[preds==1].cpu().sum()
+    #non_group_precision = ((target[preds==0]==0).cpu().sum())/(preds[preds==0]==0).cpu().sum()
+    return group_precision, non_group_precision
+    
     
     
 
 def edge_recall(preds, target):
-    """compute pairwise group/non-group precision"""
+    """compute pairwise group/non-group recall"""
     _,preds = preds.max(-1)
     retrived_possitive = ((preds[target==1]==1).cpu().sum()).item()
     total_possitive = ((target[target==1]).cpu().sum()).item()
@@ -238,6 +271,27 @@ def edge_recall(preds, target):
     #non_group_recall = ((preds[target==0]==0).cpu().sum())/(target[target==0]==0).cpu().sum()
     return group_recall, non_group_recall
 
+
+def edge_recall_prob(preds, target, threshold=0.5):
+    preds = (preds>threshold).int()
+    retrived_possitive = ((preds[target==1]==1).cpu().sum()).item()
+    total_possitive = ((target[target==1]).cpu().sum()).item()
+    retrived_negative = ((preds[target==0]==0).cpu().sum()).item()
+    total_negative = ((target[target==0]==0).cpu().sum()).item()
+    
+    if retrived_possitive==total_possitive:
+        group_recall = 1
+    if retrived_negative==total_negative:
+        non_group_recall = 1
+        
+    if total_possitive > 0:
+        group_recall = retrived_possitive/total_possitive
+    if total_negative > 0:
+        non_group_recall = retrived_negative/total_negative
+    
+    #group_recall = ((preds[target==1]==1).cpu().sum())/(target[target==1]).cpu().sum()
+    #non_group_recall = ((preds[target==0]==0).cpu().sum())/(target[target==0]==0).cpu().sum()
+    return group_recall, non_group_recall
 
     
 

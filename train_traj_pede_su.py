@@ -328,15 +328,29 @@ def train(epoch, best_val_F1):
         example = example.cpu()
         rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
         
-        acc = edge_accuracy(logits, label)
-        acc_train.append(acc)
-        gp, ngp = edge_precision(logits, label)
-        gp_train.append(gp)
-        ngp_train.append(ngp)
         
-        gr,ngr = edge_recall(logits, label)
-        gr_train.append(gr)
-        ngr_train.append(ngr)
+        if isinstance(decoder, InnerProdDecoder):
+            acc = edge_accuracy_prob(logits, label)
+            acc_train.append(acc)
+            gp, ngp = edge_precision_prob(logits, label)
+            gp_train.append(gp)
+            ngp_train.append(ngp)
+            
+            gr,ngr = edge_recall_prob(logits, label)
+            gr_train.append(gr)
+            ngr_train.append(ngr)
+            
+        
+        else:
+            acc = edge_accuracy(logits, label)
+            acc_train.append(acc)
+            gp, ngp = edge_precision(logits, label)
+            gp_train.append(gp)
+            ngp_train.append(ngp)
+        
+            gr,ngr = edge_recall(logits, label)
+            gr_train.append(gr)
+            ngr_train.append(ngr)
         
         loss_train.append(loss_current.item())
         
@@ -409,15 +423,30 @@ def train(epoch, best_val_F1):
                     loss_current = F.cross_entropy(output, target.long())
             
             
-            acc = edge_accuracy(logits, label)
-            acc_val.append(acc)
-            gp, ngp = edge_precision(logits, label)
-            gp_val.append(gp)
-            ngp_val.append(ngp)
+            
+            if isinstance(decoder, InnerProdDecoder):
+                acc = edge_accuracy_prob(logits, label)
+                acc_val.append(acc)
+                gp, ngp = edge_precision_prob(logits, label)
+                gp_val.append(gp)
+                ngp_val.append(ngp)
+                
+                gr,ngr = edge_recall_prob(logits, label)
+                gr_val.append(gr)
+                ngr_val.append(ngr)
+            
+            else:
+                acc = edge_accuracy(logits, label)
+                acc_val.append(acc)
+                gp, ngp = edge_precision(logits, label)
+                gp_val.append(gp)
+                ngp_val.append(ngp)
             
             gr,ngr = edge_recall(logits, label)
             gr_val.append(gr)
             ngr_val.append(ngr)
+            
+            
             
             loss_val.append(loss_current.item())
             if args.use_rnn:
@@ -612,15 +641,29 @@ def test():
                 else:
                     loss_current = F.cross_entropy(output, target.long())
             
-            acc = edge_accuracy(logits, label)
-            acc_test.append(acc)
-            gp, ngp = edge_precision(logits, label)
-            gp_test.append(gp)
-            ngp_test.append(ngp)
             
-            gr,ngr = edge_recall(logits, label)
-            gr_test.append(gr)
-            ngr_test.append(ngr)
+            if isinstance(decoder, InnerProdDecoder):
+                acc = edge_accuracy_prob(logits, label)
+                acc_test.append(acc)
+                gp, ngp = edge_precision_prob(logits, label)
+                gp_test.append(gp)
+                ngp_test.append(ngp)
+                
+                gr,ngr = edge_recall_prob(logits, label)
+                gr_test.append(gr)
+                ngr_test.append(ngr)
+            
+            
+            else:
+                acc = edge_accuracy(logits, label)
+                acc_test.append(acc)
+                gp, ngp = edge_precision(logits, label)
+                gp_test.append(gp)
+                ngp_test.append(ngp)
+            
+                gr,ngr = edge_recall(logits, label)
+                gr_test.append(gr)
+                ngr_test.append(ngr)
             
             loss_test.append(loss_current.item())
             if args.use_rnn:
