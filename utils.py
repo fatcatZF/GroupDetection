@@ -226,7 +226,7 @@ def edge_precision(preds, target):
     #non_group_precision = ((target[preds==0]==0).cpu().sum())/(preds[preds==0]==0).cpu().sum()
     return group_precision, non_group_precision
 
-def edge_precision_prob(preds, target, threshold=0.5):
+def edge_precision_prob(preds, target, threshold=0.7):
     """Compute pairwise group/non-group precision"""
     preds = (preds>threshold).int()
     true_possitive = ((preds[target==1]==1).cpu().sum()).item()
@@ -272,7 +272,7 @@ def edge_recall(preds, target):
     return group_recall, non_group_recall
 
 
-def edge_recall_prob(preds, target, threshold=0.5):
+def edge_recall_prob(preds, target, threshold=0.7):
     preds = (preds>threshold).int()
     retrived_possitive = ((preds[target==1]==1).cpu().sum()).item()
     total_possitive = ((target[target==1]).cpu().sum()).item()
