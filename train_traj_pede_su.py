@@ -441,10 +441,10 @@ def train(epoch, best_val_F1):
                 gp, ngp = edge_precision(logits, label)
                 gp_val.append(gp)
                 ngp_val.append(ngp)
+                gr,ngr = edge_recall(logits, label)
+                gr_val.append(gr)
+                ngr_val.append(ngr)
             
-            gr,ngr = edge_recall(logits, label)
-            gr_val.append(gr)
-            ngr_val.append(ngr)
             
             
             
