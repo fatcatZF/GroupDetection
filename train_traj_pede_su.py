@@ -335,9 +335,17 @@ def train(epoch, best_val_F1):
             loss_val.append(loss_current.item())
             
             if gr==0 or gp==0:
-                F1 = 0
+                F1_g = 0
             else:
-                F1 = 2*(gr*gp)/(gr+gp)
+                F1_g = 2*(gr*gp)/(gr+gp)
+            
+            #non-group F1
+            if ngr==0 or ngp==0:
+                F1_ng = 0.
+            else:
+                F1_ng = 2*(ngr*ngp)/(ngr+ngp)
+                
+            F1 = 0.5*(F1_g+F1_ng)
                 
             F1_val.append(F1)
             
