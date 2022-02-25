@@ -65,6 +65,8 @@ parser.add_argument("--lr-decay", type=int, default=200,
                     help="After how epochs to decay LR factor of gamma.")
 parser.add_argument("--gamma", type=float, default=0.5,
                     help="LR decay factor.")
+parser.add_argument("--group-weight", type=float, default=0.5,
+                    help="group weight.")
 
 
 
@@ -141,7 +143,9 @@ elif args.encoder == "wavenet":
                              kernel_size = args.kernel_size, depth=args.depth,
                              do_prob=args.encoder_dropout, factor=args.factor,
                              use_motion=args.use_motion)
-    
+
+
+cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])    
 
 if args.load_folder:
     encoder_file = os.path.join(args.load_folder, "nri_encoder.pt")
@@ -151,6 +155,7 @@ if args.load_folder:
     
 if args.cuda:
     encoder.cuda()
+    cross_entropy_weight = cross_entropy_weight.cuda()
     
 
 #optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
@@ -206,7 +211,7 @@ def train(epoch, best_val_F1):
         output = logits.view(logits.size(0)*logits.size(1),-1)
         target = label.view(-1)
         
-        current_loss = F.cross_entropy(output, target.long())
+        current_loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         loss += current_loss
         count+=1
         
@@ -265,7 +270,7 @@ def train(epoch, best_val_F1):
             
             output = logits.view(logits.size(0)*logits.size(1),-1)
             target = label.view(-1)
-            loss_current = F.cross_entropy(output, target.long())
+            loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             
             #move tensors back to cpu
             example = example.cpu()

@@ -93,6 +93,10 @@ parser.add_argument('--var', type=float, default=1e-1,
 
 parser.add_argument("--sc-weight", type=float, default=0.2,
                     help="Sparse Constraint Weight.")
+parser.add_argument("--group-weight", type=float, default=0.5,
+                    help="group weight.")
+
+
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -200,9 +204,13 @@ if args.load_folder:
     args.save_folder = False
     
 
+cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])
+
+
 if args.cuda:
     encoder = encoder.cuda()
     decoder = decoder.cuda()
+    cross_entropy_weight = cross_entropy_weight.cuda()
     if args.use_rnn:
         rnn_decoder = rnn_decoder.cuda()
     
@@ -301,13 +309,13 @@ def train(epoch, best_val_F1):
             if isinstance(decoder, InnerProdDecoder):
                 loss_cross = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_cross = F.cross_entropy(output, target.long())
+                loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             loss_current = loss_cross+loss_sc+loss_rec
         else:
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_current = F.cross_entropy(output, target.long())
+                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         loss = loss+loss_current
         
         count += 1
@@ -410,14 +418,14 @@ def train(epoch, best_val_F1):
                 if isinstance(decoder, InnerProdDecoder):
                     loss_cross = F.binary_cross_entropy(output.view(-1), target.float())
                 else:
-                    loss_cross = F.cross_entropy(output, target.long())
+                    loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 loss_current = loss_cross+loss_sc+loss_rec
             else:
                 #loss_current = F.cross_entropy(output, target.long())
                 if isinstance(decoder, InnerProdDecoder):
                     loss_current = F.binary_cross_entropy(output.view(-1), target.float())
                 else:
-                    loss_current = F.cross_entropy(output, target.long())
+                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             
             
             
@@ -627,7 +635,7 @@ def test():
                 if isinstance(decoder, InnerProdDecoder):
                     loss_cross = F.binary_cross_entropy(output.view(-1), target.float())
                 else:
-                    loss_cross = F.cross_entropy(output, target.long())
+                    loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 loss_current = loss_cross+loss_sc+loss_rec
             else:
                 
@@ -636,7 +644,7 @@ def test():
                 if isinstance(decoder, InnerProdDecoder):
                     loss_current = F.binary_cross_entropy(output.view(-1), target.float())
                 else:
-                    loss_current = F.cross_entropy(output, target.long())
+                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             
             
             if isinstance(decoder, InnerProdDecoder):

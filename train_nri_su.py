@@ -56,6 +56,8 @@ parser.add_argument("--lr-decay", type=int, default=200,
                     help="After how epochs to decay LR factor of gamma.")
 parser.add_argument("--gamma", type=float, default=0.5,
                     help="LR decay factor.")
+parser.add_argument("--group-weight", type=float, default=0.5,
+                    help="group weight.")
 
 
 args = parser.parse_args()
@@ -127,6 +129,9 @@ if args.load_folder:
 triu_indices = get_triu_offdiag_indices(args.num_atoms)
 tril_indices = get_tril_offdiag_indices(args.num_atoms)
 
+cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])
+
+
 
 if args.cuda:
     encoder.cuda()
@@ -135,6 +140,7 @@ if args.cuda:
     rel_send = rel_send.cuda()
     triu_indices = triu_indices.cuda()
     tril_indices = tril_indices.cuda()
+    cross_entropy_weight = cross_entropy_weight.cuda()
     
 
 optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
