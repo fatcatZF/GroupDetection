@@ -96,6 +96,9 @@ parser.add_argument("--sc-weight", type=float, default=0.2,
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group weight.")
 
+parser.add_argument("--use-focal", action="store_true", default=False,
+                    help="use focal loss.")
+
 
 
 args = parser.parse_args()
@@ -309,13 +312,19 @@ def train(epoch, best_val_F1):
             if isinstance(decoder, InnerProdDecoder):
                 loss_cross = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                if not args.use_focal:
+                    loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                else:
+                    loss_cross = focal_loss(output, target.long(), weight=cross_entropy_weight)
             loss_current = loss_cross+loss_sc+loss_rec
         else:
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                if args.use_focal:
+                    loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
+                else:  
+                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         loss = loss+loss_current
         
         count += 1

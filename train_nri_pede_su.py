@@ -59,6 +59,9 @@ parser.add_argument("--kernel-size", type=int, default=5,
 parser.add_argument("--depth", type=int, default=1,
                     help="depth of Wavenet CNN res blocks.")
 
+parser.add_argument("--use-focal", action="store_true", default=False,
+                    help="use focal loss.")
+
 parser.add_argument("--timesteps", type=int, default=15,
                     help="The number of time steps per sample.")
 parser.add_argument("--lr-decay", type=int, default=200,
@@ -211,7 +214,10 @@ def train(epoch, best_val_F1):
         output = logits.view(logits.size(0)*logits.size(1),-1)
         target = label.view(-1)
         
-        current_loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+        if args.use_focal:
+            current_loss = focal_loss(output, target.long(), weight=cross_entropy_weight)
+        else:
+            current_loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         loss += current_loss
         count+=1
         
@@ -270,7 +276,11 @@ def train(epoch, best_val_F1):
             
             output = logits.view(logits.size(0)*logits.size(1),-1)
             target = label.view(-1)
-            loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+            
+            if args.use_focal:
+                loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
+            else:
+                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             
             #move tensors back to cpu
             example = example.cpu()
