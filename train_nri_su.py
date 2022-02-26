@@ -229,9 +229,18 @@ def train(epoch, best_val_F1):
             loss_val.append(loss.item())
             
             if gr==0 or gp==0:
-                F1 = 0
+                F1_g = 0
             else:
-                F1 = 2*(gr*gp)/(gr+gp)
+                F1_g = 2*(gr*gp)/(gr+gp)
+                
+            if ngr==0 or ngp==0:
+                F1_ng = 0.
+            else:
+                F1_ng = 2*(ngr*ngp)/(ngr+ngp)
+                
+            F1 = args.group_weight*F1_g+(1-args.group_weight)*F1_ng
+                
+            
                 
             F1_val.append(F1)
             

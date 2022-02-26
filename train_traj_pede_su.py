@@ -481,7 +481,7 @@ def train(epoch, best_val_F1):
             else:
                 F1_ng = 2*(ngr*ngp)/(ngr+ngp)
                 
-            F1 = 0.5*(F1_g+F1_ng)
+            F1 = args.group_weight*F1_g+(1-args.group_weight)*F1_ng
                 
             F1_val.append(F1)
     
