@@ -327,7 +327,7 @@ def train(epoch, best_val_loss):
           "gr_val: {:.10f}".format(np.mean(gr_val)),
           "ngr_val: {:.10f}".format(np.mean(ngr_val)),
           "F1_val: {:.10f}".format(np.mean(F1_val)))
-    if args.save_folder and np.mean(F1_val) > best_val_F1:
+    if args.save_folder and np.mean(loss_val) < best_val_loss:
         torch.save(encoder, encoder_file)
         print("Best model so far, saving...")
         print("Epoch: {:04d}".format(epoch),
