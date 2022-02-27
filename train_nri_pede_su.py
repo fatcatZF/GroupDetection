@@ -167,7 +167,7 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay, gamma=args.g
 
 
 
-def train(epoch, best_val_F1):
+def train(epoch, best_val_loss):
     t = time.time()
     loss_train = []
     acc_train = []
@@ -347,7 +347,7 @@ def train(epoch, best_val_F1):
               file=log)
         log.flush()
         
-    return np.mean(F1_val)
+    return np.mean(loss_val)
 
 
 
@@ -410,13 +410,13 @@ def test():
 #Train model
 
 t_total = time.time()
-best_val_F1 = -1.
+best_val_loss = np.inf
 best_epoch = 0
 
 for epoch in range(args.epochs):
-    val_F1 = train(epoch, best_val_F1)
-    if val_F1 > best_val_F1:
-        best_val_F1 = val_F1
+    val_loss = train(epoch, best_val_loss)
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
         best_epoch = epoch
         
 print("Optimization Finished!")
