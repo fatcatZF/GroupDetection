@@ -135,7 +135,7 @@ tuned_encoder_file = os.path.join(args.tuned_folder, "traj_encoder.pt")
 encoder = torch.load(tuned_encoder_file)
 
 #Load data
-data_folder = os.path.join("data/pedestrian/all", args.suffix)
+data_folder = os.path.join("data/pedestrian/", args.suffix)
 
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
@@ -190,7 +190,7 @@ if args.cuda:
     cross_entropy_weight = cross_entropy_weight.cuda()
 
 
-def train(epoch, best_val_F1):
+def train(epoch, best_val_loss):
     t = time.time()
     loss_train = []
     acc_train = []
@@ -394,7 +394,7 @@ def train(epoch, best_val_F1):
               "gr_val: {:.10f}".format(np.mean(gr_val)),
               "ngr_val: {:.10f}".format(np.mean(ngr_val)),
               "F1_val: {:.10f}".format(np.mean(F1_val)))
-        if args.save_folder and np.mean(F1_val) > best_val_F1:
+        if args.save_folder and np.mean(loss_val) < best_val_loss:
                 torch.save(encoder, encoder_file)
                 torch.save(decoder, decoder_file)
                 print("Best model so far, saving...")
@@ -415,7 +415,7 @@ def train(epoch, best_val_F1):
                       file=log)
                 log.flush()
                 
-    return np.mean(F1_val)    
+    return np.mean(loss_val)    
 
 
 
@@ -516,13 +516,13 @@ def test():
 #Train model
 
 t_total = time.time()
-best_val_F1 = -1.
+best_val_loss = np.inf
 best_epoch = 0
 
 for epoch in range(args.epochs):
-    val_F1 = train(epoch, best_val_F1)
-    if val_F1 > best_val_F1:
-        best_val_F1 = val_F1
+    val_loss = train(epoch, best_val_loss)
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
         best_epoch = epoch
         
 print("Optimization Finished!")
