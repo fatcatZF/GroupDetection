@@ -820,10 +820,13 @@ class GNNDecoder(nn.Module):
         incomming = torch.matmul(rel_rec.t(), x)
         return incomming/incomming.size(1)
     
-    def node2edge(self, x, rel_rec, rel_send):
+    def node2edge(self, x, rel_rec, rel_send, edge_difference=False):
         receivers = torch.matmul(rel_rec, x)
         senders = torch.matmul(rel_send, x)
-        edges = torch.cat([senders-receivers, senders, receivers], dim=-1)
+        if edge_defference:
+            edges = torch.cat([senders-receivers, senders, receivers], dim=-1)
+        else:
+            edges = torch.cat([senders, receivers], dim=-1)
         return edges
     
     def forward(self, inputs, rel_rec, rel_send):
@@ -831,7 +834,7 @@ class GNNDecoder(nn.Module):
         inputs: [batch_size, n_atoms, n_latent]
         
         """
-        x = self.node2edge(inputs, rel_rec, rel_send)
+        x = self.node2edge(inputs, rel_rec, rel_send, edge_difference=True)
         #shape: [batch_size, n_edges, 3*n_latent]
         x = self.mlp1(x)
         #shape: [batch_size, n_edges, n_hid]
