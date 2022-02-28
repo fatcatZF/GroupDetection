@@ -94,6 +94,9 @@ parser.add_argument("--sc-weight", type=float, default=0.2,
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group Weight.")
 
+parser.add_argument("--use-focal", action="store_true", default=False,
+                    help="use focal loss.")
+
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -210,9 +213,8 @@ def train(epoch, best_val_F1):
     np.random.shuffle(training_indices)
     
     optimizer.zero_grad()
-    loss = 0.
-    count = 0
     idx_count = 0
+    accumulation_steps = min(args.batch_size, len(examples_train))
     
     for idx in training_indices:
         example = examples_train[idx]
@@ -247,22 +249,24 @@ def train(epoch, best_val_F1):
         target = label.view(-1)
         
         if isinstance(decoder, InnerProdDecoder):
-            loss_current = F.binary_cross_entropy(output.view(-1), target.float())
+            loss = F.binary_cross_entropy(output.view(-1), target.float())
         else:
-            loss_current = F.cross_entropy(output, target.long(),weight=cross_entropy_weight)
-            
-        loss = loss+loss_current
+            if args.use_focal:
+                loss = focal_loss(output, target.long(), weight=cross_entropy_weight)
+            else:
+                loss = F.cross_entropy(output, target.long(),weight=cross_entropy_weight)
         
-        count+=1
+        loss_train.append(loss.item())
+        loss = loss/accumulation_steps
+        loss.backward()
         
-        if (idx+1)%args.batch_size==0 or idx==len(examples_train)-1:
-            loss = loss/count
-            loss.backward()
+        idx_count+=1
+        
+        if idx_count%args.batch_size==0 or idx_count==len(examples_train):            
             optimizer.step()
             scheduler.step()
-            count = 0
-            loss = 0.
             optimizer.zero_grad()
+            accumulation_steps = min(args.batch_size, len(examples)-idx_count)
             
             
             
@@ -288,7 +292,6 @@ def train(epoch, best_val_F1):
             gr_train.append(gr)
             ngr_train.append(ngr)
             
-        loss_train.append(loss_current.item())
         
             
             
@@ -332,7 +335,10 @@ def train(epoch, best_val_F1):
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                if use_focal:
+                    loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
+                else:
+                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 
             
             if isinstance(decoder, InnerProdDecoder):
@@ -464,7 +470,10 @@ def test():
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                if args.use_focal:
+                    loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
+                else:
+                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 
             if isinstance(decoder, InnerProdDecoder):
                 acc = edge_accuracy_prob(logits, label)
