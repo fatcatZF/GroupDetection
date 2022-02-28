@@ -823,7 +823,7 @@ class GNNDecoder(nn.Module):
     def node2edge(self, x, rel_rec, rel_send, edge_difference=False):
         receivers = torch.matmul(rel_rec, x)
         senders = torch.matmul(rel_send, x)
-        if edge_defference:
+        if edge_difference:
             edges = torch.cat([senders-receivers, senders, receivers], dim=-1)
         else:
             edges = torch.cat([senders, receivers], dim=-1)
