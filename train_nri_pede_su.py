@@ -219,6 +219,8 @@ def train(epoch, best_val_loss):
             loss = focal_loss(output, target.long(), weight=cross_entropy_weight)
         else:
             loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+            
+        loss_train.append(loss.item())
         loss = loss/accumulation_steps #average by dividing accumulation steps
         loss.backward()
         count+=1
@@ -247,7 +249,7 @@ def train(epoch, best_val_loss):
         gr_train.append(gr)
         ngr_train.append(ngr)
         
-        loss_train.append(loss.item())
+        
     
     
     encoder.eval()
