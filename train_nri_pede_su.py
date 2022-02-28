@@ -189,7 +189,6 @@ def train(epoch, best_val_loss):
     np.random.shuffle(training_indices)
     
     optimizer.zero_grad()
-    count = 0
     idx_count = 0
     accumulation_steps = min(args.batch_size, len(examples_train)) #Initialization of accumulation steps
     
@@ -223,7 +222,6 @@ def train(epoch, best_val_loss):
         loss_train.append(loss.item())
         loss = loss/accumulation_steps #average by dividing accumulation steps
         loss.backward()
-        count+=1
         idx_count+=1
         
         if idx_count%args.batch_size==0 or idx_count==len(examples_train):

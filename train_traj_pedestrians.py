@@ -49,7 +49,7 @@ parser.add_argument('--n-latent', type=int, default=32,
                     help='latent dimension')
 parser.add_argument('--depth', type=int, default=2,
                     help='depth of Residual CNN Blocks')
-parser.add_argument("--kernel-size", type=int, default=5, 
+parser.add_argument("--kernel-size", type=int, default=3, 
                     help="kernel size of CNN")
 
 parser.add_argument("--n-noise", type=int, default=4,

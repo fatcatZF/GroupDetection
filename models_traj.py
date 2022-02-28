@@ -369,9 +369,9 @@ class TCNEncoder(nn.Module):
                                               dilation=2**(2*i))]
         self.res_blocks = torch.nn.Sequential(*res_layers)
         self.maxpool = nn.MaxPool1d(kernel_size=3)
-        self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
+        self.conv_predict = nn.Conv1d(c_hidden, n_out, kernel_size=1)
         self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
-        self.fc_h = nn.Linear(c_out, n_out)
+        #self.fc_h = nn.Linear(c_out, n_out)
         self.mode = mode
         
     def forward(self, inputs, rel_rec=None, rel_send=None):
@@ -392,10 +392,11 @@ class TCNEncoder(nn.Module):
         pred_attention = (pred*attention).mean(dim=2) #shape: [total_trajctories, c_out]
         pred_attention = pred_attention.view(batch_size, n_atoms, -1)
         #shape: [batch_size, num_atoms, c_out]
-        if self.mode=="un":
-            h = F.softsign(self.fc_h(pred_attention))
-        else:
-            h = F.relu(self.fc_h(pred_attention))
+        #if self.mode=="un":
+        #    h = F.softsign(self.fc_h(pred_attention))
+        #else:
+        #    h = F.relu(self.fc_h(pred_attention))
+        h = F.leaky_relu(pred_attention)
         
         return h #shape:[batch_size, num_atoms, n_out]
         
@@ -418,12 +419,11 @@ class GraphTCNEncoder(nn.Module):
         self.res_blocks = torch.nn.Sequential(*res_layers)
         self.maxpool = nn.MaxPool1d(kernel_size=3)
             
-        self.conv_predict = nn.Conv1d(c_hidden, c_out, kernel_size=1)
+        self.conv_predict = nn.Conv1d(c_hidden, n_out, kernel_size=1)
         self.conv_attention = nn.Conv1d(c_hidden, 1, kernel_size=1)
             
-        #self.fc_mu = nn.Linear(c_out, n_out)
-        #self.fc_sigma = nn.Linear(c_out, n_out)
-        self.fc_h = nn.Linear(c_out, n_out)
+        
+        #self.fc_h = nn.Linear(c_out, n_out)
         self.model_increment=model_increment
         self.mode = mode
             
@@ -450,16 +450,17 @@ class GraphTCNEncoder(nn.Module):
         pred_attention = (pred*attention).mean(dim=2) #shape: [total_trajctories, c_out]
         
         pred_attention = pred_attention.view(inputs.size(0), inputs.size(1), -1)
-        #shape: [batch_size, num_atoms, c_out]
+        #shape: [batch_size, num_atoms, n_out]
         
         #mu = self.fc_mu(pred_attention)
         #logvar = self.fc_sigma(pred_attention)
         #sigma = torch.exp(0.5*logvar)
         #h = torch.tanh(self.fc_h(pred_attention))
-        if self.mode=="un":
-            h = F.softsign(self.fc_h(pred_attention))
-        else:
-            h = F.leaky_relu(self.fc_h(pred_attention))
+        #if self.mode=="un":
+        #    h = F.softsign(self.fc_h(pred_attention))
+        #else:
+        #    h = F.leaky_relu(self.fc_h(pred_attention))
+        h = F.leaky_relu(pred_attention)
         
         return h
         
@@ -800,7 +801,7 @@ class GNNDecoder(nn.Module):
         n_out: group relationships
         """
         super(GNNDecoder, self).__init__()
-        self.mlp1 = MLP(2*n_latent, n_hid, n_hid, do_prob)
+        self.mlp1 = MLP(3*n_latent, n_hid, n_hid, do_prob)
         self.mlp2 = MLP(n_hid+n_latent, n_hid, n_hid, do_prob)
         self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)           
         self.fc_out = nn.Linear(n_hid, n_out)
@@ -822,7 +823,7 @@ class GNNDecoder(nn.Module):
     def node2edge(self, x, rel_rec, rel_send):
         receivers = torch.matmul(rel_rec, x)
         senders = torch.matmul(rel_send, x)
-        edges = torch.cat([senders, receivers], dim=-1)
+        edges = torch.cat([senders-receivers, senders, receivers], dim=-1)
         return edges
     
     def forward(self, inputs, rel_rec, rel_send):
@@ -831,7 +832,7 @@ class GNNDecoder(nn.Module):
         
         """
         x = self.node2edge(inputs, rel_rec, rel_send)
-        #shape: [batch_size, n_edges, 2*n_latent]
+        #shape: [batch_size, n_edges, 3*n_latent]
         x = self.mlp1(x)
         #shape: [batch_size, n_edges, n_hid]
         x_skip = x

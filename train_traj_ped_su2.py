@@ -212,6 +212,7 @@ def train(epoch, best_val_F1):
     optimizer.zero_grad()
     loss = 0.
     count = 0
+    idx_count = 0
     
     for idx in training_indices:
         example = examples_train[idx]
