@@ -337,7 +337,7 @@ def train(epoch, best_val_F1):
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
-            accumulation_steps = min(args.batch_size, len(examples)-idx_count)
+            accumulation_steps = min(args.batch_size, len(examples_train)-idx_count)
         
 
         
