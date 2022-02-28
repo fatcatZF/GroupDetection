@@ -191,6 +191,7 @@ def train(epoch, best_val_loss):
     optimizer.zero_grad()
     loss = 0.
     count = 0
+    idx_count = 0
     
     for idx in training_indices:
         
@@ -220,8 +221,9 @@ def train(epoch, best_val_loss):
             current_loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         loss += current_loss
         count+=1
+        idx_count+=1
         
-        if (idx+1)%args.batch_size==0 or idx==len(examples_train)-1:
+        if idx_count%args.batch_size==0 or idx_count==len(examples_train):
             loss = loss/count
             loss.backward()
             optimizer.step()
