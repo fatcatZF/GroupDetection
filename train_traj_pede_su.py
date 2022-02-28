@@ -93,6 +93,7 @@ parser.add_argument('--var', type=float, default=1e-1,
 
 parser.add_argument("--sc-weight", type=float, default=0.2,
                     help="Sparse Constraint Weight.")
+
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group weight.")
 
@@ -135,7 +136,7 @@ else:
     
     
 #Load data
-data_folder = os.path.join("data/pedestrian/all", args.suffix)
+data_folder = os.path.join("data/pedestrian/", args.suffix)
 
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
@@ -266,8 +267,8 @@ def train(epoch, best_val_F1):
     np.random.shuffle(training_indices)
     
     optimizer.zero_grad()
-    loss = 0.
-    count = 0
+    idx_count = 0
+    accumulation_steps = min(args.batch_size, len(examples_train))
     
     for idx in training_indices:
         example = examples_train[idx]
@@ -316,31 +317,29 @@ def train(epoch, best_val_F1):
                     loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
                 else:
                     loss_cross = focal_loss(output, target.long(), weight=cross_entropy_weight)
-            loss_current = loss_cross+loss_sc+loss_rec
+            loss = loss_cross+loss_sc+loss_rec
         else:
             if isinstance(decoder, InnerProdDecoder):
-                loss_current = F.binary_cross_entropy(output.view(-1), target.float())
+                loss = F.binary_cross_entropy(output.view(-1), target.float())
             else:
                 if args.use_focal:
-                    loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
+                    loss = focal_loss(output, target.long(), weight=cross_entropy_weight)
                 else:  
-                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
-        loss = loss+loss_current
+                    loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         
-        count += 1
+        loss_train.append(loss.item())
+        loss = loss/accumulation_steps
+        loss.backward()
         
-        if (idx+1)%args.batch_size==0 or idx==len(examples_train)-1:
-            loss = loss/count
-            loss.backward()
+        idx_count += 1
+        
+        if idx_count%args.batch_size==0 or idx_count==len(examples_train):
             optimizer.step()
             scheduler.step()
-            count = 0
-            loss = 0.
             optimizer.zero_grad()
+            accumulation_steps = min(args.batch_size, len(examples)-idx_count)
         
-        #Move tensors back to cpu
-        #example = example.cpu()
-        #rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
+
         
         
         if isinstance(decoder, InnerProdDecoder):
@@ -366,7 +365,7 @@ def train(epoch, best_val_F1):
             gr_train.append(gr)
             ngr_train.append(ngr)
         
-        loss_train.append(loss_current.item())
+       
         
         if args.use_rnn:
             loss_cross_train.append(loss_cross.item())

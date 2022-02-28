@@ -196,8 +196,10 @@ def train(epoch, best_val_loss, initial_teaching_rate):
     np.random.shuffle(training_indices) #to shuffle the training examples
     
     optimizer.zero_grad()
-    loss = 0.
-    count = 0
+    
+    idx_count = 0
+    accumulation_steps = min(args.batch_size, len(examples_train))
+    
     for idx in training_indices:
         example = examples_train[idx]
         label = labels_train[idx]
@@ -239,18 +241,18 @@ def train(epoch, best_val_loss, initial_teaching_rate):
             loss_nll = nll_gaussian(output[:,:,1:,:], example[:,:,1:,:], args.var)
             loss_mse = F.mse_loss(output[:,:,1:,:], example[:,:,1:,:])
         
-        loss_current = loss_nll+loss_sc
-        loss += loss_current
-        count+=1
+        loss = loss_nll+loss_sc
+        loss = loss/accumulation_steps
+        loss.backward()
         
-        if (idx+1)%args.batch_size==0 or idx==len(examples_train)-1:
-            loss = loss/count
-            loss.backward()
+        idx_count+=1
+        
+        if idx_count%args.batch_size==0 or idx_count==len(examples_train):
+            
             optimizer.step()
             scheduler.step()
-            count = 0
-            loss = 0.
             optimizer.zero_grad()
+            accumulation_steps = min(args.batch_size, len(examples_train)-idx_count)
         
         
         
