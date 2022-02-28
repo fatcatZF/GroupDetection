@@ -335,7 +335,7 @@ def train(epoch, best_val_F1):
             if isinstance(decoder, InnerProdDecoder):
                 loss_current = F.binary_cross_entropy(output.view(-1), target.float())
             else:
-                if use_focal:
+                if args.use_focal:
                     loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
                 else:
                     loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
