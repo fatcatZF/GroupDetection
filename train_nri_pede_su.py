@@ -189,9 +189,9 @@ def train(epoch, best_val_loss):
     np.random.shuffle(training_indices)
     
     optimizer.zero_grad()
-    loss = 0.
     count = 0
     idx_count = 0
+    accumulation_steps = min(args.batch_size, len(examples_train)) #Initialization of accumulation steps
     
     for idx in training_indices:
         
@@ -216,21 +216,20 @@ def train(epoch, best_val_loss):
         target = label.view(-1)
         
         if args.use_focal:
-            current_loss = focal_loss(output, target.long(), weight=cross_entropy_weight)
+            loss = focal_loss(output, target.long(), weight=cross_entropy_weight)
         else:
-            current_loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
-        loss += current_loss
+            loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+        loss = loss/accumulation_steps #average by dividing accumulation steps
+        loss.backward()
         count+=1
         idx_count+=1
         
         if idx_count%args.batch_size==0 or idx_count==len(examples_train):
-            loss = loss/count
-            loss.backward()
+            
             optimizer.step()
             scheduler.step()
-            count = 0
-            loss = 0.
             optimizer.zero_grad()
+            accumulation_steps = min(args.batch_size, len(examples_train)-idx_count)
         
         
         #Move tensors back to cpu
