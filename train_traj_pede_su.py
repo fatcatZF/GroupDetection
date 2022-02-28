@@ -233,7 +233,7 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)    
 
 
-def train(epoch, best_val_F1):
+def train(epoch, best_val_loss):
     t = time.time()
     loss_train = []
     acc_train = []
@@ -426,14 +426,20 @@ def train(epoch, best_val_F1):
                 if isinstance(decoder, InnerProdDecoder):
                     loss_cross = F.binary_cross_entropy(output.view(-1), target.float())
                 else:
-                    loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                    if not args.use_focal:
+                        loss_cross = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                    else:
+                        loss_cross = focal_loss(output, target.long(), weight=cross_entropy_weight)
                 loss_current = loss_cross+loss_sc+loss_rec
             else:
                 #loss_current = F.cross_entropy(output, target.long())
                 if isinstance(decoder, InnerProdDecoder):
                     loss_current = F.binary_cross_entropy(output.view(-1), target.float())
                 else:
-                    loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
+                    if args.use_focal:
+                        loss_current = focal_loss(output, target.long(), weight=cross_entropy_weight)
+                    else:
+                        loss_current = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             
             
             
@@ -522,7 +528,7 @@ def train(epoch, best_val_F1):
               "gr_val: {:.10f}".format(np.mean(gr_val)),
               "ngr_val: {:.10f}".format(np.mean(ngr_val)),
               "F1_val: {:.10f}".format(np.mean(F1_val)))
-    if args.save_folder and np.mean(F1_val) > best_val_F1:
+    if args.save_folder and np.mean(loss_val) < best_val_loss:
         torch.save(encoder, encoder_file)
         torch.save(decoder, decoder_file)
         if args.use_rnn:
@@ -568,7 +574,7 @@ def train(epoch, best_val_F1):
                   file=log)
         log.flush()
         
-    return np.mean(F1_val)
+    return np.mean(loss_val)
 
 
 
@@ -713,13 +719,13 @@ def test():
 #Train model
 
 t_total = time.time()
-best_val_F1 = -1.
+best_val_loss = np.inf
 best_epoch = 0
 
 for epoch in range(args.epochs):
-    val_F1 = train(epoch, best_val_F1)
-    if val_F1 > best_val_F1:
-        best_val_F1 = val_F1
+    val_loss = train(epoch, best_val_loss)
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
         best_epoch = epoch
         
 print("Optimization Finished!")
