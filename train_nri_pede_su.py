@@ -234,10 +234,6 @@ def train(epoch, best_val_loss):
             accumulation_steps = min(args.batch_size, len(examples_train)-idx_count)
         
         
-        #Move tensors back to cpu
-        example = example.cpu()
-        rel_rec, rel_send = rel_rec.cpu(), rel_send.cpu()
-        
     
         acc = edge_accuracy(logits, label)
         acc_train.append(acc)
