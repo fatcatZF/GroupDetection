@@ -795,13 +795,13 @@ class MLP(nn.Module):
     
     
 class GNNDecoder(nn.Module):
-    def __init__(self, n_latent=32, n_hid=32, n_out=2, do_prob=0.):
+    def __init__(self, n_latent=32, n_hid=128, n_out=2, do_prob=0.):
         """
         n_latent: latent dimension of each atom
         n_out: group relationships
         """
         super(GNNDecoder, self).__init__()
-        self.mlp1 = MLP(3*n_latent, n_hid, n_hid, do_prob)
+        self.mlp1 = MLP(2*n_latent, n_hid, n_hid, do_prob)
         self.mlp2 = MLP(n_hid+n_latent, n_hid, n_hid, do_prob)
         self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)           
         self.fc_out = nn.Linear(n_hid, n_out)
@@ -820,25 +820,23 @@ class GNNDecoder(nn.Module):
         incomming = torch.matmul(rel_rec.t(), x)
         return incomming/incomming.size(1)
     
-    def node2edge(self, x, rel_rec, rel_send, edge_difference=False):
-        receivers = torch.matmul(rel_rec, x)
-        senders = torch.matmul(rel_send, x)
-        if edge_difference:
-            edges = torch.cat([senders-receivers, senders, receivers], dim=-1)
-        else:
-            edges = torch.cat([senders, receivers], dim=-1)
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x) #shape:[batch_size, n_edges, n_latent]
+        senders = torch.matmul(rel_send, x) #shape: [batch_size, n_edges, n_latent]
+        edges = torch.cat([senders, receivers], dim=-1)
+        #shape: [batch_size, n_edges, 2*n_latent]
         return edges
     
     def forward(self, inputs, rel_rec, rel_send):
         """
-        inputs: [batch_size, n_atoms, n_latent]
-        
+        inputs: node representations
+           shape: [batch_size, n_atoms, n_latent]        
         """
-        x = self.node2edge(inputs, rel_rec, rel_send, edge_difference=True)
-        #shape: [batch_size, n_edges, 3*n_latent]
+        x = self.node2edge(inputs, rel_rec, rel_send)
+        #shape: [batch_size, n_edges, 2*n_latent]
         x = self.mlp1(x)
         #shape: [batch_size, n_edges, n_hid]
-        x_skip = x
+        x_skip = x #skip connection
         
         x = self.edge2node(x, rel_rec, rel_send)
         #shape: [batch_size, n_atoms, n_hid]

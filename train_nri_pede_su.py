@@ -108,7 +108,7 @@ else:
     
 
 #Load data
-data_folder = os.path.join("data/pedestrian/", args.suffix)
+data_folder = os.path.join("data/pedestrian/all", args.suffix)
 
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
