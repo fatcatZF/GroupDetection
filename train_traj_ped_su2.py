@@ -135,7 +135,7 @@ tuned_encoder_file = os.path.join(args.tuned_folder, "traj_encoder.pt")
 encoder = torch.load(tuned_encoder_file)
 
 #Load data
-data_folder = os.path.join("data/pedestrian/", args.suffix)
+data_folder = os.path.join("data/pedestrian/all", args.suffix)
 
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
