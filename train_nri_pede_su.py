@@ -70,6 +70,8 @@ parser.add_argument("--gamma", type=float, default=0.5,
                     help="LR decay factor.")
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group weight.")
+parser.add_argument("--grecall-weight", type=float, default=0.60,
+                    help="group recall.")
 
 
 
@@ -167,7 +169,7 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay, gamma=args.g
 
 
 
-def train(epoch, best_val_loss):
+def train(epoch, best_val_recall):
     t = time.time()
     loss_train = []
     acc_train = []
@@ -182,6 +184,7 @@ def train(epoch, best_val_loss):
     gr_val = []
     ngr_val = []
     F1_val = []
+    recall_val = []
     
     encoder.train()
     
@@ -301,9 +304,12 @@ def train(epoch, best_val_loss):
             else:
                 F1_ng = 2*(ngr*ngp)/(ngr+ngp)
                 
-            F1 = args.group_weight*F1_g+(1-args.group_weight)*F1_ng
+            #F1 = args.group_weight*F1_g+(1-args.group_weight)*F1_ng
+            
+            ave_recall = args.grecall_weight*gr+(1-args.grecall_weight)*ngr
+            recall_val.append(ave_recall)
                 
-            F1_val.append(F1)
+            F1_val.append(F1_g)
             
     
     print("Epoch: {:04d}".format(epoch),
@@ -319,8 +325,9 @@ def train(epoch, best_val_loss):
           "ngp_val: {:.10f}".format(np.mean(ngp_val)),
           "gr_val: {:.10f}".format(np.mean(gr_val)),
           "ngr_val: {:.10f}".format(np.mean(ngr_val)),
-          "F1_val: {:.10f}".format(np.mean(F1_val)))
-    if args.save_folder and np.mean(loss_val) < best_val_loss:
+          "F1_val: {:.10f}".format(np.mean(F1_val)),
+          "recall_val: {:.10f}".format(np.mean(recall_val)))
+    if args.save_folder and np.mean(recall_val) > best_val_recall:
         torch.save(encoder, encoder_file)
         print("Best model so far, saving...")
         print("Epoch: {:04d}".format(epoch),
@@ -337,10 +344,11 @@ def train(epoch, best_val_loss):
               "gr_val: {:.10f}".format(np.mean(gr_val)),
               "ngr_val: {:.10f}".format(np.mean(ngr_val)),
               "F1_val: {:.10f}".format(np.mean(F1_val)),
+              "recall_val: {:.10f}".format(np.mean(recall_val)),
               file=log)
         log.flush()
         
-    return np.mean(loss_val)
+    return np.mean(recall_val)
 
 
 
@@ -403,13 +411,13 @@ def test():
 #Train model
 
 t_total = time.time()
-best_val_loss = np.inf
+best_val_recall = 0.
 best_epoch = 0
 
 for epoch in range(args.epochs):
-    val_loss = train(epoch, best_val_loss)
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
+    val_recall = train(epoch, best_val_recall)
+    if val_recall > best_val_recall:
+        best_val_recall = val_recall
         best_epoch = epoch
         
 print("Optimization Finished!")
