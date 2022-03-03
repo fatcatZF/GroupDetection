@@ -68,9 +68,13 @@ parser.add_argument("--lr-decay", type=int, default=200,
                     help="After how epochs to decay LR factor of gamma.")
 parser.add_argument("--gamma", type=float, default=0.5,
                     help="LR decay factor.")
+
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group weight.")
-parser.add_argument("--grecall-weight", type=float, default=0.60,
+parser.add_argument("--ng-weight", type=float, default=0.5,
+                    help="Non-group weight.")
+
+parser.add_argument("--grecall-weight", type=float, default=0.50,
                     help="group recall.")
 
 
@@ -110,7 +114,7 @@ else:
     
 
 #Load data
-data_folder = os.path.join("data/pedestrian/all", args.suffix)
+data_folder = os.path.join("data/pedestrian/", args.suffix)
 
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
