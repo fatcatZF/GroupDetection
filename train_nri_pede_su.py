@@ -154,7 +154,7 @@ elif args.encoder == "wavenet":
                              use_motion=args.use_motion)
 
 
-cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])    
+cross_entropy_weight = torch.tensor([args.ng_weight, args.group_weight])    
 
 if args.load_folder:
     encoder_file = os.path.join(args.load_folder, "nri_encoder.pt")
