@@ -64,7 +64,7 @@ parser.add_argument("--use-focal", action="store_true", default=False,
 
 parser.add_argument("--timesteps", type=int, default=15,
                     help="The number of time steps per sample.")
-parser.add_argument("--lr-decay", type=int, default=120,
+parser.add_argument("--lr-decay", type=int, default=100,
                     help="After how epochs to decay LR factor of gamma.")
 parser.add_argument("--gamma", type=float, default=0.5,
                     help="LR decay factor.")
