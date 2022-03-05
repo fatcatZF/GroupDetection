@@ -74,7 +74,7 @@ parser.add_argument("--group-weight", type=float, default=0.5,
 parser.add_argument("--ng-weight", type=float, default=0.5,
                     help="Non-group weight.")
 
-parser.add_argument("--grecall-weight", type=float, default=0.50,
+parser.add_argument("--grecall-weight", type=float, default=0.65,
                     help="group recall.")
 
 
