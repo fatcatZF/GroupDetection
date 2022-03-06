@@ -310,7 +310,7 @@ def train(epoch, best_val_recall):
                 
             #F1 = args.group_weight*F1_g+(1-args.group_weight)*F1_ng
             
-            ave_recall = args.grecall_weight*gr+(1-args.grecall_weight)*ngr
+            ave_recall = args.grecall_weight*gr+(1-args.grecall_weight)*gp
             recall_val.append(ave_recall)
                 
             F1_val.append(F1_g)
