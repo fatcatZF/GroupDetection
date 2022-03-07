@@ -492,9 +492,9 @@ def train(epoch, best_val_recall):
             else:
                 F1_ng = 2*(ngr*ngp)/(ngr+ngp)
                 
-            F1 = args.group_weight*F1_g+(1-args.group_weight)*F1_ng
+            F1 = 0.5*F1_g+0.5*F1_ng
             
-            average_recall = args.group_weight*gr+(1-args.group_weight)*ngr
+            average_recall = args.grecall_weight*gr+(1-args.grecall_weight)*ngr
                 
             F1_val.append(F1)
             recall_val.append(average_recall)
