@@ -96,6 +96,11 @@ parser.add_argument("--sc-weight", type=float, default=0.2,
 
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group weight.")
+parser.add_argument("--ng-weight", type=float, default=0.5,
+                    help="non-group weight.")
+
+parser.add_argument("--grecall-weight", type=float, default=0.65,
+                    help="group recall weight.")
 
 parser.add_argument("--use-focal", action="store_true", default=False,
                     help="use focal loss.")

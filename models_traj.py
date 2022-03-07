@@ -817,7 +817,7 @@ class GNNDecoder(nn.Module):
         """
         x: embedding vectors of edges: [batch_size, n_edges, n_features]
         """
-        incomming = torch.matmul(rel_rec.t(), x)
+        incomming = torch.matmul(rel_rec.t(), x) #shape:[batch_size, n_nodes, n_features]
         return incomming/incomming.size(1)
     
     def node2edge(self, x, rel_rec, rel_send):
