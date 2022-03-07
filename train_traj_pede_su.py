@@ -213,7 +213,7 @@ if args.load_folder:
     args.save_folder = False
     
 
-cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])
+cross_entropy_weight = torch.tensor([args.ng_weight, args.group_weight])
 
 
 if args.cuda:
