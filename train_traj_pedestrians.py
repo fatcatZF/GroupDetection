@@ -177,8 +177,8 @@ if args.cuda:
     
     
     
-optimizer = optim.SGD(list(encoder.parameters()) + list(decoder.parameters()),
-                       lr=args.lr, momentum=0.9)
+optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
+                       lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
