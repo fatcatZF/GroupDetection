@@ -93,7 +93,7 @@ parser.add_argument("--sc-weight", type=float, default=0.2,
                     help="Sparse Constraint Weight.")
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group Weight.")
-parser.add_argument("--g-weight", type=float, default=0.5,
+parser.add_argument("--ng-weight", type=float, default=0.5,
                     help="Non group weight.")
 
 parser.add_argument("--grecall-weight", type=float, default=0.5,
