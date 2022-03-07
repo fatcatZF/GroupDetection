@@ -103,7 +103,7 @@ initial_teaching_rate = args.teaching_rate
 
 
 #Load data
-data_folder = os.path.join("data/pedestrian/all", args.suffix)
+data_folder = os.path.join("data/pedestrian/", args.suffix)
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
     examples_train = pickle.load(f)
@@ -178,7 +178,7 @@ if args.cuda:
     
     
 optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
-                       lr=args.lr)
+                       lr=args.lr, momentum=0.9)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
