@@ -77,7 +77,7 @@ parser.add_argument('--dims', type=int, default=2,
 parser.add_argument('--timesteps', type=int, default=15,
                     help='The number of time steps per sample.')
 
-parser.add_argument('--lr-decay', type=int, default=200,
+parser.add_argument('--lr-decay', type=int, default=100,
                     help='After how epochs to decay LR by a factor of gamma.')
 parser.add_argument('--gamma', type=float, default=0.5,
                     help='LR decay factor.')
@@ -177,7 +177,7 @@ if args.cuda:
     
     
     
-optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
+optimizer = optim.SGD(list(encoder.parameters()) + list(decoder.parameters()),
                        lr=args.lr, momentum=0.9)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
