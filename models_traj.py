@@ -801,11 +801,21 @@ class GNNDecoder(nn.Module):
         n_out: group relationships
         """
         super(GNNDecoder, self).__init__()
-        self.mlp1 = MLP(2*n_latent, n_hid, n_hid, do_prob)
-        self.mlp2 = MLP(n_hid+n_latent, n_hid, n_hid, do_prob)
-        self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)           
+        self.mlp1 = MLP(n_latent+1, n_hid, n_hid, do_prob) #edge model
+        self.mlp2 = MLP(n_hid+n_latent, n_hid, n_hid, do_prob) #node model
+        self.mlp3 = MLP(n_hid*2, n_hid, n_hid, do_prob)           
         self.fc_out = nn.Linear(n_hid, n_out)
         self.init_weights()
+        
+    def init_edgeFeatures(self, x, rel_rec, rel_send):
+        """
+        args: x: [batch_size, n_atoms, n_latent]
+        """
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        features_init = torch.sqrt(((senders-receivers)**2).sum(-1)).unsqueeze(-1)
+        return features_init #shape: [batch_size, n_edges, 1]
+        
         
     def init_weights(self):
         for m in self.modules():
@@ -823,8 +833,9 @@ class GNNDecoder(nn.Module):
     def node2edge(self, x, rel_rec, rel_send):
         receivers = torch.matmul(rel_rec, x) #shape:[batch_size, n_edges, n_latent]
         senders = torch.matmul(rel_send, x) #shape: [batch_size, n_edges, n_latent]
-        edges = torch.cat([senders, receivers], dim=-1)
-        #shape: [batch_size, n_edges, 2*n_latent]
+        #edges = torch.cat([senders, receivers], dim=-1)
+        edges = senders+receivers
+        #shape: [batch_size, n_edges, n_latent]
         return edges
     
     def forward(self, inputs, rel_rec, rel_send):
@@ -832,21 +843,25 @@ class GNNDecoder(nn.Module):
         inputs: node representations
            shape: [batch_size, n_atoms, n_latent]        
         """
+        features_init = self.init_edgeFeatures(inputs, rel_rec, rel_send)
+        #shape: [batch_size, n_edges, 1]
         x = self.node2edge(inputs, rel_rec, rel_send)
-        #shape: [batch_size, n_edges, 2*n_latent]
+        #shape: [batch_size, n_edges, n_latent]
+        x = torch.cat([features_init, x], dim=-1)
+        #shape: [batch_size, n_edges, n_latent+1]
         x = self.mlp1(x)
         #shape: [batch_size, n_edges, n_hid]
         x_skip = x #skip connection
         
         x = self.edge2node(x, rel_rec, rel_send)
         #shape: [batch_size, n_atoms, n_hid]
-        x = torch.cat([x, inputs], dim=-1)
+        x = torch.cat([inputs, x], dim=-1)
         #shape: [batch_size, n_atoms, n_hid+n_latent]
         x = self.mlp2(x)
         #shape: [batch_size, n_atoms, n_hid]
         x = self.node2edge(x, rel_rec, rel_send)
-        #shape: [batch_size, n_atoms, 2*n_hid]
-        x = torch.cat([x, x_skip], dim=-1)
+        #shape: [batch_size, n_atoms, n_hid]
+        x = torch.cat([x_skip,x], dim=-1)
         #shape: [batch_size, n_atoms, 3*n_hid]
         x = self.mlp3(x)
         
