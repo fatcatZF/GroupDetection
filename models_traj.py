@@ -834,7 +834,7 @@ class GNNDecoder(nn.Module):
         receivers = torch.matmul(rel_rec, x) #shape:[batch_size, n_edges, n_latent]
         senders = torch.matmul(rel_send, x) #shape: [batch_size, n_edges, n_latent]
         #edges = torch.cat([senders, receivers], dim=-1)
-        edges = senders+receivers
+        edges = senders*receivers
         #shape: [batch_size, n_edges, n_latent]
         return edges
     
@@ -843,13 +843,14 @@ class GNNDecoder(nn.Module):
         inputs: node representations
            shape: [batch_size, n_atoms, n_latent]        
         """
+        #create initial features
         features_init = self.init_edgeFeatures(inputs, rel_rec, rel_send)
         #shape: [batch_size, n_edges, 1]
         x = self.node2edge(inputs, rel_rec, rel_send)
         #shape: [batch_size, n_edges, n_latent]
         x = torch.cat([features_init, x], dim=-1)
         #shape: [batch_size, n_edges, n_latent+1]
-        x = self.mlp1(x)
+        x = self.mlp1(x) #updated edge features
         #shape: [batch_size, n_edges, n_hid]
         x_skip = x #skip connection
         
