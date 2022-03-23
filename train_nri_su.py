@@ -120,6 +120,22 @@ elif args.encoder == "wavenet":
                              do_prob=args.encoder_dropout, factor=args.factor,
                              use_motion=args.use_motion)
     
+elif args.encoder=="wavenetraw":
+    encoder = WavenetEncoderRaw(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=False)
+    
+elif args.encoder=="waveneteuc":
+    encoder = WavenetEncoderEuc(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+
+elif args.encoder=="wavenetsym":
+    encoder = WavenetEncoderSym(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+
+    
 if args.load_folder:
     encoder_file = os.path.join(args.load_folder, "nri_encoder.pt")
     encoder.load_state_dict(torch.load(encoder_file))

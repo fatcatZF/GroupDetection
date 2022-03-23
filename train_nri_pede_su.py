@@ -152,6 +152,21 @@ elif args.encoder == "wavenet":
                              kernel_size = args.kernel_size, depth=args.depth,
                              do_prob=args.encoder_dropout, factor=args.factor,
                              use_motion=args.use_motion)
+    
+elif args.encoder=="wavenetraw":
+    encoder = WavenetEncoderRaw(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=False)
+    
+elif args.encoder=="waveneteuc":
+    encoder = WavenetEncoderEuc(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+
+elif args.encoder=="wavenetsym":
+    encoder = WavenetEncoderSym(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
 
 
 cross_entropy_weight = torch.tensor([args.ng_weight, args.group_weight])    

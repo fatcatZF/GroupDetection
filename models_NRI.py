@@ -792,6 +792,373 @@ class WavenetEncoder(nn.Module):
             
         return self.fc_out(x)   
     
+    
+
+
+
+
+
+class WavenetEncoderEuc(nn.Module):
+    """
+    Wavenet Encoder using euclidean distance with temporal increments as edge features
+    """
+    def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
+                factor=True, use_motion=False):
+        super(WavenetEncoder,self).__init__()
+        self.dropout_prob = do_prob
+        self.factor = factor
+        self.use_motion = use_motion
+        self.cnn = GatedResCausalCNN(n_in*2+1, n_hid, n_hid, kernel_size, depth, do_prob)
+        self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)
+        self.fc_out = nn.Linear(n_hid, n_out)
+        if self.factor:
+            print("Using factor graph Euclidean Wavenet encoder")
+        else:
+            print("Using Euclidean Wavenet encoder.")
+        self.init__weights()
+        
+        
+    def init__weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.data.fill_(0.1)
+    
+                
+    def node2edge_temporal(self, inputs, rel_rec, rel_send):
+         #Note: Assume that we have the same graph across all samples
+         x = inputs.view(inputs.size(0), inputs.size(1), -1)
+         #shape: [batch_size, num_atoms, num_timesteps*num_features]
+         
+         receivers = torch.matmul(rel_rec, x)
+         receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                    inputs.size(2), inputs.size(3))
+         #shape: [batch_size*num_edges, num_timesteps, num_features]
+         receivers = receivers.transpose(2,1)
+         #shape: [batch_size*num_edges, num_features, num_timesteps]
+         
+         senders = torch.matmul(rel_send, x)
+         senders = senders.view(inputs.size(0)*senders.size(1),
+                                inputs.size(2), inputs.size(3))
+         senders = senders.transpose(2,1)
+         
+         edges = torch.cat([senders, receivers], dim=1)
+         #shape: [batch_size*num_edges, 2*num_features, num_timesteps]
+         
+         return edges
+     
+                
+    def node2edgediff_temporal(self, inputs, rel_rec, rel_send):
+         x = inputs.view(inputs.size(0), inputs.size(1), -1)
+         #shape: [batch_size, num_atoms, num_timesteps*num_features]
+         
+         receivers = torch.matmul(rel_rec, x)
+         receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                    inputs.size(2), inputs.size(3))
+         #shape: [batch_size*num_edges, num_timesteps, num_features]
+         receivers = receivers.transpose(2,1)
+         #shape: [batch_size*num_edges, num_features, num_timesteps]
+         
+         senders = torch.matmul(rel_send, x)
+         senders = senders.view(inputs.size(0)*senders.size(1),
+                                inputs.size(2), inputs.size(3))
+         senders = senders.transpose(2,1)
+    
+         edge_diffs = torch.sqrt(((senders-receivers)**2).sum(1)).unsqueeze(1)
+         #shape: [batch_size*num_edges, 1, num_timesteps]
+         return edge_diffs
+     
+        
+    def edge2node(self, x, rel_rec, rel_send):
+        incoming = torch.matmul(rel_rec.t(), x)
+        return incoming/incoming.size(1)
+    
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        edges = torch.cat([senders, receivers], dim=2)
+        return edges
+    
+    def forward(self, inputs, rel_rec, rel_send):
+        #inputs shape: [batch_size, num_atoms, num_timesteps, num_dims]
+        inputs_origin = inputs
+        if self.use_motion:
+            inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
+        edges = self.node2edge_temporal(inputs, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, 2*num_dims, num_timesteps]
+        edge_diffs = self.node2edgediff_temporal(inputs_origin, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, num_dims, num_timesteps]
+        if self.use_motion:
+            edge_diffs = edge_diffs[:,:,:-1]
+        
+        edges = torch.cat([edge_diffs, edges], dim=1)
+        #shape: [batch_size*num_edges, 3*num_dims, num_timesteps]
+        
+        x = self.cnn(edges)
+        x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
+        x = F.leaky_relu(x)
+        x = x+self.mlp1(x) #[batch_size, num_edges, n_hid]
+        x_skip = x
+        
+        if self.factor:
+            x = self.edge2node(x, rel_rec, rel_send)
+            x = x+self.mlp2(x)
+            x = self.node2edge(x, rel_rec, rel_send)
+            x = torch.cat([x, x_skip], dim=2) #Skip connection
+            x = self.mlp3(x)
+            
+        return self.fc_out(x) 
+     
+    
+                
+                
+        
+
+
+
+
+class WavenetEncoderSym(nn.Module):
+    """
+    Wavenet Encoder using symmetric way building edge features
+    """
+    def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
+                factor=True, use_motion=False):
+        super(WavenetEncoder,self).__init__()
+        self.dropout_prob = do_prob
+        self.factor = factor
+        self.use_motion = use_motion
+        self.cnn = GatedResCausalCNN(n_in+1, n_hid, n_hid, kernel_size, depth, do_prob)
+        self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp3 = MLP(n_hid*2, n_hid, n_hid, do_prob)
+        self.fc_out = nn.Linear(n_hid, n_out)
+        if self.factor:
+            print("Using factor graph Wavenet encoder with raw Features")
+        else:
+            print("Using Wavenet encoder with raw Features.")
+        self.init__weights()
+        
+    def init__weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.data.fill_(0.1)
+                
+    def node2edge_temporal(self, inputs, rel_rec, rel_send):
+         #Note: Assume that we have the same graph across all samples
+         x = inputs.view(inputs.size(0), inputs.size(1), -1)
+         #shape: [batch_size, num_atoms, num_timesteps*num_features]
+         
+         receivers = torch.matmul(rel_rec, x)
+         receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                    inputs.size(2), inputs.size(3))
+         #shape: [batch_size*num_edges, num_timesteps, num_features]
+         receivers = receivers.transpose(2,1)
+         #shape: [batch_size*num_edges, num_features, num_timesteps]
+         
+         senders = torch.matmul(rel_send, x)
+         senders = senders.view(inputs.size(0)*senders.size(1),
+                                inputs.size(2), inputs.size(3))
+         senders = senders.transpose(2,1)
+         #shape: [batch_size*num_edges, num_features, num_timesteps]
+         
+         edges = senders*receivers
+         #shape: [batch_size*num_edges, num_features, num_timesteps]
+         
+         return edges
+     
+    def node2edgediff_temporal(self, inputs, rel_rec, rel_send):
+          x = inputs.view(inputs.size(0), inputs.size(1), -1)
+          #shape: [batch_size, num_atoms, num_timesteps*num_features]
+          
+          receivers = torch.matmul(rel_rec, x)
+          receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                     inputs.size(2), inputs.size(3))
+          #shape: [batch_size*num_edges, num_timesteps, num_features]
+          receivers = receivers.transpose(2,1)
+          #shape: [batch_size*num_edges, num_features, num_timesteps]
+          
+          senders = torch.matmul(rel_send, x)
+          senders = senders.view(inputs.size(0)*senders.size(1),
+                                 inputs.size(2), inputs.size(3))
+          senders = senders.transpose(2,1)
+     
+          edge_diffs = torch.sqrt(((senders-receivers)**2).sum(1)).unsqueeze(1)
+          #shape: [batch_size*num_edges, 1, num_timesteps]
+          return edge_diffs
+      
+    def edge2node(self, x, rel_rec, rel_send):
+         incoming = torch.matmul(rel_rec.t(), x)
+         return incoming/incoming.size(1)
+     
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        #edges = torch.cat([senders, receivers], dim=2)
+        edges = senders*receivers
+        return edges #shape: [batch_size, n_edges, n_hid]
+    
+    def forward(self, inputs, rel_rec, rel_send):
+        #inputs shape: [batch_size, num_atoms, num_timesteps, num_dims]
+        inputs_origin = inputs
+        if self.use_motion:
+            inputs = inputs[:,:,1:,:]-inputs[:,:,:-1,:]
+        edges = self.node2edge_temporal(inputs, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, 2*num_dims, num_timesteps]
+        edge_diffs = self.node2edgediff_temporal(inputs_origin, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, num_dims, num_timesteps]
+        if self.use_motion:
+            edge_diffs = edge_diffs[:,:,:-1]
+        
+        edges = torch.cat([edge_diffs, edges], dim=1)
+        #shape: [batch_size*num_edges,num_dims+1, num_timesteps]
+        
+        x = self.cnn(edges)
+        x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
+        #shape: [batch_size, n_edges, n_hid]
+        x = F.leaky_relu(x)
+        x = x+self.mlp1(x) #[batch_size, num_edges, n_hid]
+        x_skip = x
+        
+        if self.factor:
+            x = self.edge2node(x, rel_rec, rel_send)
+            #shape: [batch_size, n_nodes, n_hid]
+            x = x+self.mlp2(x)
+            x = self.node2edge(x, rel_rec, rel_send)
+            #shape: [batch_size, n_edges, n_hid]
+            x = torch.cat([x, x_skip], dim=2) #Skip connection
+            x = self.mlp3(x)
+            
+        return self.fc_out(x) 
+    
+    
+     
+    
+     
+        
+           
+     
+    
+                
+    
+                
+    
+    
+
+
+
+class WavenetEncoderRaw(nn.Module):
+    """
+    Wavenet Encoder using concatenated raw features
+    """
+    def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
+                factor=True, use_motion=False):
+        super(WavenetEncoder,self).__init__()
+        self.dropout_prob = do_prob
+        self.factor = factor
+        self.use_motion = use_motion
+        self.cnn = GatedResCausalCNN(n_in*2, n_hid, n_hid, kernel_size, depth, do_prob)
+        self.mlp1 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp2 = MLP(n_hid, n_hid, n_hid, do_prob)
+        self.mlp3 = MLP(n_hid*3, n_hid, n_hid, do_prob)
+        self.fc_out = nn.Linear(n_hid, n_out)
+        if self.factor:
+            print("Using factor graph Wavenet encoder with raw Features")
+        else:
+            print("Using Wavenet encoder with raw Features.")
+        self.init__weights()
+        
+    def init__weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight.data)
+                m.bias.data.fill_(0.1)
+                
+    def node2edge_temporal(self, inputs, rel_rec, rel_send):
+          #Note: Assume that we have the same graph across all samples
+          x = inputs.view(inputs.size(0), inputs.size(1), -1)
+          #shape: [batch_size, num_atoms, num_timesteps*num_features]
+          
+          receivers = torch.matmul(rel_rec, x)
+          receivers = receivers.view(inputs.size(0)*receivers.size(1),
+                                     inputs.size(2), inputs.size(3))
+          #shape: [batch_size*num_edges, num_timesteps, num_features]
+          receivers = receivers.transpose(2,1)
+          #shape: [batch_size*num_edges, num_features, num_timesteps]
+          
+          senders = torch.matmul(rel_send, x)
+          senders = senders.view(inputs.size(0)*senders.size(1),
+                                 inputs.size(2), inputs.size(3))
+          senders = senders.transpose(2,1)
+          
+          edges = torch.cat([senders, receivers], dim=1)
+          #shape: [batch_size*num_edges, 2*num_features, num_timesteps]
+          
+          return edges
+      
+    def edge2node(self, x, rel_rec, rel_send):
+        incoming = torch.matmul(rel_rec.t(), x)
+        return incoming/incoming.size(1)
+    
+    def node2edge(self, x, rel_rec, rel_send):
+        receivers = torch.matmul(rel_rec, x)
+        senders = torch.matmul(rel_send, x)
+        edges = torch.cat([senders, receivers], dim=2)
+        return edges
+    
+    
+    def forward(self, inputs, rel_rec, rel_send):
+        #inputs shape: [batch_size, num_atoms, num_timesteps, num_dims]
+        
+        edges = self.node2edge_temporal(inputs, rel_rec, rel_send)
+        #shape: [batch_size*num_edges, 2*num_dims, num_timesteps]
+        
+        
+        x = self.cnn(edges)
+        x = x.view(inputs.size(0), (inputs.size(1)-1)*inputs.size(1), -1)
+        x = F.leaky_relu(x)
+        x = x+self.mlp1(x) #[batch_size, num_edges, n_hid]
+        x_skip = x
+        
+        if self.factor:
+            x = self.edge2node(x, rel_rec, rel_send)
+            x = x+self.mlp2(x)
+            x = self.node2edge(x, rel_rec, rel_send)
+            x = torch.cat([x, x_skip], dim=2) #Skip connection
+            x = self.mlp3(x)
+            
+        return self.fc_out(x) 
+    
+    
+      
+     
+                
+    
+        
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
    
 
         
