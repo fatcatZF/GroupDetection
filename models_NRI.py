@@ -804,7 +804,7 @@ class WavenetEncoderEuc(nn.Module):
     """
     def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
                 factor=True, use_motion=False):
-        super(WavenetEncoder,self).__init__()
+        super(WavenetEncoderEuc,self).__init__()
         self.dropout_prob = do_prob
         self.factor = factor
         self.use_motion = use_motion
@@ -925,7 +925,7 @@ class WavenetEncoderSym(nn.Module):
     """
     def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
                 factor=True, use_motion=False):
-        super(WavenetEncoder,self).__init__()
+        super(WavenetEncoderSym,self).__init__()
         self.dropout_prob = do_prob
         self.factor = factor
         self.use_motion = use_motion
@@ -1055,7 +1055,7 @@ class WavenetEncoderRaw(nn.Module):
     """
     def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
                 factor=True, use_motion=False):
-        super(WavenetEncoder,self).__init__()
+        super(WavenetEncoderRaw,self).__init__()
         self.dropout_prob = do_prob
         self.factor = factor
         self.use_motion = use_motion
