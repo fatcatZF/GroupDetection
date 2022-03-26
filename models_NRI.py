@@ -935,9 +935,9 @@ class WavenetEncoderSym(nn.Module):
         self.mlp3 = MLP(n_hid*2, n_hid, n_hid, do_prob)
         self.fc_out = nn.Linear(n_hid, n_out)
         if self.factor:
-            print("Using factor graph Wavenet encoder with raw Features")
+            print("Using factor graph Wavenet encoder with symmetric Features")
         else:
-            print("Using Wavenet encoder with raw Features.")
+            print("Using Wavenet encoder with symmetric Features.")
         self.init__weights()
         
     def init__weights(self):
