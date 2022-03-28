@@ -4,19 +4,19 @@ import numpy as np
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--num-train", type=int, default=600)
-parser.add_argument("--num-valid", type=int, default=200)
-parser.add_argument("--num-test", type=int, default=200)
+parser.add_argument("--num-train", type=int, default=1800)
+parser.add_argument("--num-valid", type=int, default=600)
+parser.add_argument("--num-test", type=int, default=600)
 parser.add_argument("--length", type=int, default=5000, help="length of trajectory.")
 parser.add_argument("--sample-freq", type=int, default=100, 
                     help="How often to sample the trajectory.")
-parser.add_argument("--n-balls", type=int, default=5, help="Number of balls in the simulation.")
+parser.add_argument("--n-balls", type=int, default=10, help="Number of balls in the simulation.")
 parser.add_argument("--seed", type=int, default=42, help="Random seed")
 parser.add_argument("--dynamic", action="store_true", default=False, help="whether generate dynamic groups")
 parser.add_argument("--age-factor", type=int, default=0.0001, help="age factor")
 parser.add_argument("--ga-values-factor", type=int, default=5, help="group assignment value factor")
 parser.add_argument("--K", type=float, default=3.0, help="K")
-parser.add_argument("--b", type=float, default= 0.03, help="b")
+parser.add_argument("--b", type=float, default= 0.05, help="b")
 
 args = parser.parse_args()
 print(args)
