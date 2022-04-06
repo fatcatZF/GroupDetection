@@ -50,7 +50,7 @@ parser.add_argument('--encoder-dropout', type=float, default=0.,
 parser.add_argument('--decoder-dropout', type=float, default=0.,
                     help='Dropout rate (1 - keep probability).')
 
-parser.add_argument('--save-folder', type=str, default='logs/nri',
+parser.add_argument('--save-folder', type=str, default='logs/nriped',
                     help='Where to save the trained model, leave empty to not save anything.')
 parser.add_argument('--load-folder', type=str, default='',
                     help='Where to load the trained model if finetunning. ' +
@@ -144,11 +144,40 @@ elif args.encoder == 'cnn':
     encoder = CNNEncoder(args.dims, args.encoder_hidden,
                          args.edge_types,
                          args.encoder_dropout, args.factor, use_motion=args.use_motion)
+
+elif args.encoder == "cnnsym":
+    encoder = CNNEncoderSym(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+
     
 elif args.encoder=="rescnn":
     encoder = ResCausalCNNEncoder(args.dims, args.encoder_hidden, args.edge_types,
                         do_prob=args.encoder_dropout, factor=args.factor,
                         use_motion=args.use_motion)
+    
+
+elif args.encoder == "wavenet":
+    encoder = WavenetEncoder(args.dims, args.encoder_hidden, args.edge_types, 
+                             kernel_size = args.kernel_size, depth=args.depth,
+                             do_prob=args.encoder_dropout, factor=args.factor,
+                             use_motion=args.use_motion)
+    
+elif args.encoder=="wavenetraw":
+    encoder = WavenetEncoderRaw(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=False)
+    
+elif args.encoder=="waveneteuc":
+    encoder = WavenetEncoderEuc(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+
+elif args.encoder=="wavenetsym":
+    encoder = WavenetEncoderSym(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
+
     
 decoder = MLPDecoder(n_in_node=args.dims,
                          edge_types=args.edge_types,

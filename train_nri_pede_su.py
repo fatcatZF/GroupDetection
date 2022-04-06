@@ -141,6 +141,11 @@ if args.encoder == "mlp":
 elif args.encoder == "cnn":
     encoder = CNNEncoder(args.dims, args.encoder_hidden, args.edge_types, 
                          args.encoder_dropout, args.factor, use_motion=args.use_motion)
+    
+elif args.encoder == "cnnsym":
+    encoder = CNNEncoderSym(args.dims, args.encoder_hidden, args.edge_types,
+                        do_prob=args.encoder_dropout, factor=args.factor,
+                        use_motion=args.use_motion)
 
 elif args.encoder == "rescnn":
     encoder = ResCausalCNNEncoder(args.dims, args.encoder_hidden, args.edge_types,
