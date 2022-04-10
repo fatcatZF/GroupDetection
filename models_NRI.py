@@ -1043,7 +1043,7 @@ class CNNEncoderSym(nn.Module):
     """
     def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
                 factor=True, use_motion=False):
-        super(WavenetEncoderSym,self).__init__()
+        super(CNNEncoderSym,self).__init__()
         self.dropout_prob = do_prob
         self.factor = factor
         self.use_motion = use_motion
