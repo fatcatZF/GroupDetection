@@ -227,7 +227,11 @@ def train(epoch, best_val_loss):
     np.random.shuffle(training_indices) #to shuffle the training examples
     
     optimizer.zero_grad()
-    loss = 0.
+    
+    idx_count = 0
+    accumulation_steps = min(args.batch_size, len(examples_train))
+    
+    #loss = 0.
     
     for idx in training_indices:
         example = examples_train[idx]
@@ -257,8 +261,18 @@ def train(epoch, best_val_loss):
         loss_nll = nll_gaussian(output, target, args.var)
         loss_kl = kl_categorical_uniform(prob, num_atoms, args.edge_types)
         
-        loss_current = loss_nll+loss_kl
-        loss += loss_current
+        loss = loss_nll+loss_kl
+        loss = loss/accumulation_steps
+        loss.backward()
+        
+        idx_count+=1
+        
+        if idx_count%args.batch_size==0 or idx_count==len(examples_train):
+            
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
+            accumulation_steps = min(args.batch_size, len(examples_train)-idx_count)
         
         acc = edge_accuracy(logits, label)
         acc_train.append(acc)
@@ -274,9 +288,9 @@ def train(epoch, best_val_loss):
         #co_train.append(loss_co.item())
         
         
-    loss.backward()
-    optimizer.step()
-    scheduler.step()
+    #loss.backward()
+    #optimizer.step()
+    #scheduler.step()
     
     
     nll_val = []
