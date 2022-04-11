@@ -114,7 +114,7 @@ else:
           "Testing (within this script) will throw an error.")
     
 #Load data
-data_folder = os.path.join("data/pedestrian/all", args.suffix)
+data_folder = os.path.join("data/pedestrian/", args.suffix)
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
     examples_train = pickle.load(f)
