@@ -159,9 +159,45 @@ class HardwiredAttention(nn.Module):
         #shape: [batch_size, n_timesteps, n_atoms, n_h]
         
         ch = ch.permute(0, 2, 1, -1)
-        #shape: []
+        #shape: [batch_size, n_atoms, n_timesteps, n_h]
         
         return ch
+    
+    
+class LSTMContextEncoder(nn.Module):
+    """
+    LSTM Context Encoder
+    """
+    def __init__(self, n_in, n_emb, n_hid):
+        super(LSTMContextEncoder, self).__init__()
+        self.lstm_encoder = LSTMEncoder(n_in, n_emb, n_hid)
+        self.soft_att = SoftAttention(n_hid)
+        self.hard_att = HardwiredAttention()
+        
+    def forward(self, inputs, rel_rec, rel_send, rel_rec_t, rel_send_t):
+        """
+        args:
+            inputs: [batch_size, n_atoms, n_timesteps, n_in]
+            rel_rec, rel_send: [n_atoms*(n_atoms-1), n_atoms]
+            rel_rec_t, rel_send_t: [n_atoms**2, n_atoms]
+        """
+        locs = inputs[:,:,:,:2] #shape: [batch_size, n_atoms, n_timesteps, 2]
+        hs = self.lstm_encoder(inputs) 
+        # hs shape: [batch_size, n_atoms, n_timesteps, n_hid]
+        cs = self.soft_att(hs, rel_rec_t, rel_send_t)
+        # cs shape: [batch_size, n_atoms, n_timesteps, n_hid]
+        ch = self.hard_att(locs, hs, rel_rec, rel_send)
+        # ch shape: [batch_size, n_atoms, n_timesteps, n_hid]
+        
+        ch_t = ch.sum(2) #shape: [batch_size, n_atoms, n_hid]
+        cs_t = cs[:,:,-1,:] #shape: [batch_size, n_atoms, n_hid]
+        
+        c = torch.cat([cs_t, ch_t], dim=-1)
+        #shape: [batch_size, n_atoms, 2*n_hid]
+        
+        return c
+        
+        
         
         
         
