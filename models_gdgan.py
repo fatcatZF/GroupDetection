@@ -49,8 +49,8 @@ class LSTMEncoder(nn.Module):
     """LSTM Encoder"""
     def __init__(self, n_in, n_emb=16, n_h=32):
         super(LSTMEncoder, self).__init__()
-        self.fc_emb = nn.Linear(n_in, 2*n_emb)
-        self.lstm_cell = LSTMCell(2*n_emb, n_h)
+        self.fc_emb = nn.Linear(n_in, n_emb)
+        self.lstm_cell = LSTMCell(n_emb, n_h)
         
     def forward(self, inputs, rel_rec=None, rel_send=None):
         """
@@ -196,6 +196,74 @@ class LSTMContextEncoder(nn.Module):
         #shape: [batch_size, n_atoms, 2*n_hid]
         
         return c
+ 
+    
+ 
+
+class LSTMDecoder(nn.Module):
+    """
+    LSTM Decoder
+    """
+    def __init__(self, n_in, n_emb, n_context, n_noise=12):
+        super(LSTMDecoder, self).__init__()
+        self.fc_emb = nn.Linear(n_in, n_emb)
+        self.lstm_cell = LSTMCell(n_emb, n_context+n_noise)
+        self.fc_out = nn.Linear(n_context+n_noise, n_in)
+        
+        
+    def forward(self, inputs, init_hidden):
+        """
+        args:
+            inputs: sequences to predict
+              shape: [batch_size, n_atoms, n_timesteps, n_in]
+            init_hidden: initial hidden state
+              shape: [batch_size, n_atoms, n_context+n_noise]
+        """
+        x_current = inputs[:,:,0,:] #shape: [batch_size, n_atoms, n_in]
+        batch_size = x_current.size(0)
+        n_atoms = x_current.size(1)
+        h_current = init_hidden #shape: [batch_size, n_atoms, n_context+n_noise]
+        h_current = h_current.view(batch_size*n_atoms, -1)
+        c_current = torch.zeros_like(h_current)
+        if inputs.is_cuda:
+            c_current = c_current.cuda()
+        hc = (h_current, c_current)
+        n_timesteps = inputs.size(2)
+        pred_timesteps = n_timesteps-1
+        predicted = [x_current]
+        hs = []
+        for t in range(pred_timesteps):
+            x_emb = self.fc_emb(x_current) 
+            #shape: [batch_size, n_atoms, n_emb]
+            h, c = self.lstm_cell(x_emb, hc)
+            hc = (h, c)
+            h_re = h.view(batch_size, n_atoms, -1)
+            hs.append(h_re)
+            
+            x_current = self.fc_out(h_re)
+            #shape: [batch_size, n_atoms, n_in]
+            
+            predicted.append(x_current)
+            
+        predicted = torch.stack(predicted)
+        #shape: [n_timesteps, batch_size, n_atoms, n_in]
+        predicted = torch.permute(predicted, (1,2,0,-1))
+        
+        hs = torch.stack(hs)
+        #shape: [pred_timesteps, batch_size, n_atoms, n_hid]
+        hs = torch.permute(hs, (1,2,0, -1))
+        
+        return predicted, hs
+            
+            
+            
+        
+        
+        
+        
+        
+        
+        
         
         
         
