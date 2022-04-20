@@ -204,7 +204,7 @@ class LSTMDecoder(nn.Module):
     """
     LSTM Decoder
     """
-    def __init__(self, n_in, n_emb, n_context, n_noise=12):
+    def __init__(self, n_in, n_emb, n_context, n_noise=16):
         super(LSTMDecoder, self).__init__()
         self.fc_emb = nn.Linear(n_in, n_emb)
         self.lstm_cell = LSTMCell(n_emb, n_context+n_noise)
@@ -254,7 +254,52 @@ class LSTMDecoder(nn.Module):
         hs = torch.permute(hs, (1,2,0, -1))
         
         return predicted, hs
-            
+    
+
+
+
+class LSTMGenerator(nn.Module):
+    """
+    LSTM Generator
+    """
+    def __init__(self, n_in, n_emb, n_hid=32, n_noise=16):
+        super(LSTMGenerator, self).__init__()
+        self.lstm_contextEncoder= LSTMContextEncoder(n_in, n_emb, n_hid)
+        self.lstm_decoder=LSTMDecoder(n_in, n_emb, 2*n_hid, n_noise)
+        
+    def forward(self, inputs, noise, rel_rec, rel_send, rel_rec_t, rel_send_t):
+        """
+        args:
+            inputs: [batch_size, n_atoms, n_timesteps, n_in]
+            noise: [batch_size, n_atoms, n_noise]
+            rel_rec, rel_send: [n_atoms*(n_atoms-1), n_atoms]
+            rel_rec_t, rel_send_t: [pred_timesteps**2, n_atoms]
+        """
+        n_timesteps = inputs.size(2)
+        T_obs = int(n_timesteps/2)
+        x_obs = inputs[:,:,:T_obs,:] 
+        x_pred = inputs[:,:,T_obs:,:]
+        
+        #compute context vector
+        c = self.lstm_contextEncoder(x_obs, rel_rec, rel_send,
+                                     rel_rec_t, rel_send_t)
+        #context vector, c: [batch_size, n_atoms, n_context=2*n_hid]
+        init_hidden = torch.cat([c, noise], dim=-1)
+        #shape: [batch_size, n_atoms, 2*n_hid+n_noise]
+        predicted, hs = self.lstm_decoder(x_pred, init_hidden)
+        #predicted shape: [batch_size, n_atoms, n_timesteps-T_obs, n_in]
+        #hs: [batch_size, n_atoms, n_timesteps-T_obs-1, n_in]
+        
+        x_fake = torch.cat([x_obs, predicted], dim=2)
+        #fake sequences: [batch_size, n_atoms, n_timesteps, n_in]
+        
+        return x_fake, hs
+    
+    
+
+
+
+
             
             
         
