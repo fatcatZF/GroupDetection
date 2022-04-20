@@ -52,17 +52,27 @@ class LSTMEncoder(nn.Module):
         self.fc_emb = nn.Linear(n_in, n_emb)
         self.lstm_cell = LSTMCell(n_emb, n_h)
         
-    def forward(self, inputs, rel_rec=None, rel_send=None):
+    def forward(self, inputs, init_hidden=None ,rel_rec=None, rel_send=None):
         """
         args:
-            inputs: [batch_size, num_atoms, num_timesteps, n_in]
-            
+            inputs: [batch_size, n_atoms, n_timesteps, n_in]
+            init_hidden: [batch_size, n_atoms, n_h]
         return: latents of trajectories of atoms
         """
         batch_size = inputs.size(0)
         num_atoms = inputs.size(1)
         num_timesteps = inputs.size(2)
-        hc = None
+        if init_hidden is None:
+            hc = None
+        else:
+            h = init_hidden
+            h_re = h.view(batch_size*num_atoms, -1)
+            #shape: [batch_size*n_atoms, n_h]
+            cell = torch.zeros_like(h_re)
+            if inputs.is_cuda:
+                cell = cell.cuda()
+            hc = (h_re, cell)
+            
         hs = []
         for i in range(num_timesteps):
             inputs_i = inputs[:,:,i,:]
@@ -192,7 +202,7 @@ class LSTMContextEncoder(nn.Module):
         ch_t = ch.sum(2) #shape: [batch_size, n_atoms, n_hid]
         cs_t = cs[:,:,-1,:] #shape: [batch_size, n_atoms, n_hid]
         
-        c = torch.cat([cs_t, ch_t], dim=-1)
+        c = torch.tanh(torch.cat([cs_t, ch_t], dim=-1))
         #shape: [batch_size, n_atoms, 2*n_hid]
         
         return c
@@ -299,7 +309,44 @@ class LSTMGenerator(nn.Module):
 
 
 
-
+class LSTMDiscriminator(nn.Module):
+    """
+    LSTM Discriminator
+    """
+    def __init__(self, n_in, n_emb, n_hid):
+        super(LSTMDiscriminator, self).__init__()
+        self.lstm_contextEncoder = LSTMContextEncoder(n_in, n_emb, n_hid)
+        self.lstm_encoder = LSTMEncoder(n_in, n_emb, 2*n_hid)
+        self.fc_out = nn.Linear(2*n_hid, 1)
+        
+    def forward(self, x, rel_rec, rel_send, rel_rec_t, rel_send_t):
+        """
+        args:
+            x, input sequences: [batch_size, n_atoms, n_timesteps, n_in]
+        """
+        n_timesteps = x.size(2)
+        T_obs = int(n_timesteps/2)
+        x_obs = x[:,:,:T_obs,:]
+        x_pred = x[:,:,T_obs:,:]
+        
+        #compute context vector
+        c = self.lstm_contextEncoder(x_obs, rel_rec, rel_send,
+                                     rel_rec_t, rel_send_t)
+        #context vector, c: [batch_size, n_atoms, n_context=2*n_hid]
+        
+        hs = self.lstm_encoder(x_pred, c)
+        #shape: [batch_size, n_atoms, n_timesteps-T_obs, 2*n_hid]
+        
+        h_T = hs[:,:,-1,:]
+        
+        out = self.fc_out(h_T)
+        
+        return out
+        
+        
+        
+    
+    
             
             
         
