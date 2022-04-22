@@ -85,7 +85,7 @@ class LSTMEncoder(nn.Module):
             hs.append(h_re)
             hc = (h,c)
         hs = torch.stack(hs) #shape: [n_timesteps, batch_size, n_atoms, n_h]
-        hs = torch.permute(hs, (1,2,0,-1))
+        hs = torch.permute(hs, (1,2,0,-1)) #shape: [batch_size, n_atoms, n_timesteps, n_h]
         return hs
     
 
@@ -221,7 +221,7 @@ class LSTMDecoder(nn.Module):
         self.fc_out = nn.Linear(n_context+n_noise, n_in)
         
         
-    def forward(self, inputs, init_hidden):
+    def forward(self, inputs, init_hidden, teaching=True):
         """
         args:
             inputs: sequences to predict
@@ -250,10 +250,15 @@ class LSTMDecoder(nn.Module):
             h_re = h.view(batch_size, n_atoms, -1)
             hs.append(h_re)
             
-            x_current = self.fc_out(h_re)
+            x_pred = self.fc_out(h_re)
             #shape: [batch_size, n_atoms, n_in]
             
-            predicted.append(x_current)
+            predicted.append(x_pred)
+            
+            if not teaching:
+                x_current = x_pred
+            else:
+                x_current = inputs[:,:,t+1,:]
             
         predicted = torch.stack(predicted)
         #shape: [n_timesteps, batch_size, n_atoms, n_in]
@@ -262,6 +267,11 @@ class LSTMDecoder(nn.Module):
         hs = torch.stack(hs)
         #shape: [pred_timesteps, batch_size, n_atoms, n_hid]
         hs = torch.permute(hs, (1,2,0, -1))
+        #shape: [batch_size, n_atoms, pred_timesteps, n_hid]
+        
+        #reshape hs
+        hs = hs.reshape(batch_size, n_atoms, -1)
+        #shape: [batch_size, n_atoms, pred_timesteps*n_hid]
         
         return predicted, hs
     
@@ -277,7 +287,7 @@ class LSTMGenerator(nn.Module):
         self.lstm_contextEncoder= LSTMContextEncoder(n_in, n_emb, n_hid)
         self.lstm_decoder=LSTMDecoder(n_in, n_emb, 2*n_hid, n_noise)
         
-    def forward(self, inputs, noise, rel_rec, rel_send, rel_rec_t, rel_send_t):
+    def forward(self, inputs, noise, rel_rec, rel_send, rel_rec_t, rel_send_t, teaching=False):
         """
         args:
             inputs: [batch_size, n_atoms, n_timesteps, n_in]
@@ -296,7 +306,7 @@ class LSTMGenerator(nn.Module):
         #context vector, c: [batch_size, n_atoms, n_context=2*n_hid]
         init_hidden = torch.cat([c, noise], dim=-1)
         #shape: [batch_size, n_atoms, 2*n_hid+n_noise]
-        predicted, hs = self.lstm_decoder(x_pred, init_hidden)
+        predicted, hs = self.lstm_decoder(x_pred, init_hidden, teaching)
         #predicted shape: [batch_size, n_atoms, n_timesteps-T_obs, n_in]
         #hs: [batch_size, n_atoms, n_timesteps-T_obs-1, n_in]
         
@@ -340,6 +350,7 @@ class LSTMDiscriminator(nn.Module):
         h_T = hs[:,:,-1,:]
         
         out = self.fc_out(h_T)
+        #shape: [batch_size, n_atoms, 1]
         
         return out
         
