@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.stats import norm
+from statsmodels.tsa.stattools import grangercausalitytests
+import tslearn.metrics
 
 
 #Gaussian Mixture Models
@@ -33,6 +35,10 @@ def create_edgeNode_relation(num_nodes, self_loops=False):
 
 
 
+
+"""
+GMM for distances
+"""
 def compute_gmm(distance, GMM=GMM):
     """
     args:
@@ -71,6 +77,102 @@ def compute_gmmDist_example(example):
     probs = probs.mean(-1) #shape: [n_atoms*(n_atoms-1)]
     
     return probs
+
+
+
+"""
+Granger Causality
+"""
+def compute_granger_p(example):
+    n_atoms = example.shape[0]
+    n_timesteps = example.shape[1]
+    locs = example[:,:,:] #shape: [n_atoms, n_timesteps, n_in]
+    locs_re = locs.reshape(n_atoms, -1) #shape: [n_atoms, n_timesteps*2]
+    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    #shape: [n_edges, n_nodes]
+    senders = np.matmul(rel_send, locs_re) #shape: [n_edges, n_timesteps*2]
+    receivers = np.matmul(rel_rec, locs_re)
+    senders = senders.reshape(senders.shape[0], n_timesteps, -1)
+    receivers = receivers.reshape(receivers.shape[0], n_timesteps, -1)
+    #shape: [n_edges, n_timesteps, 2]
+    senders = np.sqrt((senders**2).sum(-1))
+    receivers = np.sqrt((receivers**2).sum(-1))
+    #shape: [n_edges, n_timesteps]
+    senders = senders.reshape(senders.shape[0], n_timesteps, -1)
+    receivers = receivers.reshape(receivers.shape[0], n_timesteps, -1)
+    #shape: [n_edges, n_timesteps, 1]
+
+    ps = []
+
+    for i in range(senders.shape[0]):
+        result_sr = grangercausalitytests(np.concatenate([senders[i], receivers[i]], axis=-1), maxlag=4, verbose=0)
+        p_sr = np.array([lag[0]["ssr_ftest"][1] for lag in result_sr.values()]).mean()
+        result_rs = grangercausalitytests(np.concatenate([receivers[i], senders[i]], axis=-1), maxlag=4, verbose=0)
+        p_rs = np.array([lag[0]["ssr_ftest"][1] for lag in result_rs.values()]).mean()
+        ps.append(max(p_sr, p_rs))
+    
+    ps = np.array(ps) #shape: [n_atoms*(n_atoms-1)]
+    
+    return ps 
+
+
+def compute_granger_sim(example):
+    ps = compute_granger_p(example)
+    return 1-ps
+
+
+
+
+"""
+DTW Distances
+"""
+# compute DTW distances
+def compute_dtw_dist(example):
+    """
+    args:
+      example, shape: [n_atoms, n_timesteps, n_in]
+    """
+    n_atoms = example.shape[0]
+    n_timesteps = example.shape[1]
+    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    #shape: [n_edges, n_atoms]
+    example_re = example.reshape(example.shape[0], -1)
+    #shape: [n_atoms, n_timesteps*n_in]
+    senders = np.matmul(rel_send, example_re)
+    receivers = np.matmul(rel_rec, example_re)
+    #shape: [n_edges, n_timesteps*n_in]
+    
+    senders = senders.reshape(senders.shape[0], n_timesteps, -1)
+    receivers = receivers.reshape(receivers.shape[0], n_timesteps, -1)
+    #shape: [n_edges, n_timesteps, n_in]
+    
+    n_edges = n_atoms*(n_atoms-1)
+    distances = []
+    for i in range(n_edges):
+        distances.append(tslearn.metrics.dtw(senders[i], receivers[i]))
+    
+    return np.array(distances) #shape: [n_edges]
+
+
+
+
+#compute DTW similarity
+def compute_dtw_sim(example):
+    """
+    args:
+        example, shape:[n_atoms, n_timesteps, n_in]
+    """
+    distances = compute_dtw_dist(example)
+    
+    return np.exp(-distances)
+
+
+
+
+    
+
+
+
 
 
 
