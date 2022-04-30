@@ -169,7 +169,154 @@ def compute_dtw_sim(example):
 
 
 
+
+"""
+Compute heatmap
+"""
+
+def build_ground(examples_train):
+    """
+    build ground for heatmap based on training examples
+    args:
+      examples_train: training examples
+    """
+    max_train_x = -np.inf
+    min_train_x = np.inf
+    max_train_y = -np.inf
+    min_train_y = np.inf
     
+    for example in examples_train:
+        max_example_x = example[:,:,0].max()
+        max_example_y = example[:,:,1].max()
+        min_example_x = example[:,:,0].min()
+        min_example_y = example[:,:,1].min()
+        if max_example_x > max_train_x:
+            max_train_x = max_example_x
+        if max_example_y > max_train_y:
+            max_train_y  = max_example_y
+        if min_example_x < min_train_x:
+            min_train_x = min_example_x
+        if min_example_y < min_train_y:
+            min_train_y = min_example_y
+            
+    Rs = np.arange(int(min_train_x)-2.5, int(max_train_x)+2.5, 1)
+    Cs = np.arange(int(min_train_y)-2.5, int(max_train_y)+2.5, 1) 
+    
+    #build ground
+    ground = np.zeros((Rs.shape[0], Cs.shape[0], 2))   
+    for i in range(Rs.shape[0]):
+        for j in range(Cs.shape[0]):
+            ground[i,j,0] = Rs[i]
+            ground[i,j,1] = Cs[j]
+        
+    return ground
+    
+
+def compute_heatmap_traj(traj, ground):
+    """
+    compute heatmap of one trajectory
+    args:
+      traj: trajectory of one agent
+        shape: [n_timesteps, 2]
+    ground:
+       coordinates of heat on ground
+    """
+    heatmap = np.zeros((ground.shape[0], ground.shape[1]))
+    for loc in traj:
+        for r in range(ground.shape[0]):
+            for c in range(ground.shape[1]):
+                if np.sqrt(((ground[r,c]-loc)**2).sum())< 1.:
+                    heatmap[r, c] = 1.
+    
+    return heatmap
+
+
+
+def compute_heatmap_sim(example, ground):
+    """
+    compute heatmap similarities
+    args:
+      example: [n_atoms, n_timesteps, n_in]
+      ground: [R X C]
+    """
+    locs = example[:,:,:2]#extract locations
+    #shape: [n_atoms, n_timesteps, 2]
+    n_atoms = example.shape[0]
+    n_timesteps = example.shape[1]
+    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    locs_re = locs.reshape(locs.shape[0], -1)
+    #shape: [n_atoms, n_timesteps*2]
+    senders = np.matmul(rel_send, locs_re)
+    receivers = np.matmul(rel_rec, locs_re)
+    #shape: [n_edges, n_timesteps*2]
+    senders = senders.reshape(senders.shape[0], n_timesteps, -1)
+    receivers = receivers.reshape(receivers.shape[0], n_timesteps, -1)
+    #shape: [n_edges, n_timesteps, 2]
+    n_edges = n_atoms*(n_atoms-1)
+    sims = []
+    for i in range(n_edges):
+        traj_s = senders[i]
+        traj_r = receivers[i]
+        heatmap_s = compute_heatmap_traj(traj_s, ground)
+        heatmap_r = compute_heatmap_traj(traj_r, ground)
+        sim_sr = (heatmap_r*heatmap_s).sum()/(np.sqrt(ground.shape[0]*ground.shape[1]))
+        sims.append(sim_sr)
+        
+    return np.array(sims) #shape: [n_edges]
+
+
+
+
+
+"""
+compute pairwise similarity for examples
+
+"""
+def compute_sims(example, ground):
+    """
+    compute pairwise similarity and dissimilarity for one example
+    args:
+      example: [n_atoms, n_timesteps, n_in]
+    """
+    #compute GMM distances Sim
+    gmm_sim = compute_gmmDist_example(example)
+    gmm_dissim = (1-gmm_sim).reshape(-1,1)
+    gmm_sim = gmm_sim.reshape(-1,1)
+    
+    #compute Granger Causality Sim
+    #granger_sim = compute_granger_sim(example)
+    #granger_dissim = (1-granger_sim).reshape(-1,1)
+    #granger_sim = granger_sim.reshape(-1,1)
+    
+    #compute DTW sim
+    dtw_sim = compute_dtw_sim(example)
+    dtw_dissim = (1-dtw_sim).reshape(-1,1)
+    dtw_sim = dtw_sim.reshape(-1, 1)
+    
+    #compute heatmap sim
+    heatmap_sim = compute_heatmap_sim(example, ground)
+    heatmap_dissim = (1-heatmap_sim).reshape(-1,1)
+    heatmap_sim = heatmap_sim.reshape(-1, 1)
+    
+    sim = np.concatenate([gmm_sim, dtw_sim, heatmap_sim], axis=-1)
+    dissim = np.concatenate([gmm_dissim, dtw_dissim, heatmap_dissim], axis=-1)
+    
+    return sim, dissim
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
