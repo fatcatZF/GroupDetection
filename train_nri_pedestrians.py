@@ -17,6 +17,11 @@ from utils import *
 from data_utils import *
 from models_NRI import *
 
+
+from sknetwork.topology import get_connected_components
+from sknetwork.clustering import Louvain
+from scipy import sparse
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
@@ -45,6 +50,9 @@ parser.add_argument("--use-motion", action="store_true", default=False,
                     help="use motion")
 parser.add_argument('--suffix', type=str, default='ETH',
                     help="ETH or Hotel")
+parser.add_argument("--split", type=str, default="split00",
+                    help="Splits of dataset.")
+
 parser.add_argument('--encoder-dropout', type=float, default=0.,
                     help='Dropout rate (1 - keep probability).')
 parser.add_argument('--decoder-dropout', type=float, default=0.,
@@ -115,6 +123,7 @@ else:
     
 #Load data
 data_folder = os.path.join("data/pedestrian/", args.suffix)
+data_folder = os.path.join(data_folder, args.split)
 
 with open(os.path.join(data_folder, "tensors_train.pkl"), 'rb') as f:
     examples_train = pickle.load(f)
@@ -471,6 +480,97 @@ def test():
           'ngp_test: {:.10f}'.format(np.mean(ngp_test)),#non-average group precision
           )
     
+
+
+def test_gmitre():
+    """
+    test group mitre recall and precision   
+    """
+    louvain = Louvain()
+    
+    encoder = torch.load(encoder_file)
+    encoder.eval()    
+    test_indices = np.arange(len(examples_test))
+    
+
+    gIDs = []
+    predicted_gr = []
+    
+    precision_all = []
+    recall_all = []
+    F1_all = []
+    
+    
+    with torch.no_grad():
+        for idx in test_indices:
+            example = examples_test[idx]
+            label = labels_test[idx] #shape: [n_edges]
+            example = example.unsqueeze(0) #shape: [1, n_atoms, n_timesteps, n_in]
+            n_atoms = example.size(1)
+            rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+            rel_rec, rel_send = rel_rec.float(), rel_send.float()
+            example = example.float()
+            
+            label = torch.diag_embed(label) #shape: [n_edges, n_edges]
+            label = label.float()
+            label_converted = torch.matmul(rel_send.t(), 
+                                           torch.matmul(label, rel_rec))
+            label_converted = label_converted.cpu().detach().numpy()
+            #shape: [n_atoms, n_atoms]
+            
+            if label_converted.sum()==0:
+                gID = list(range(label_converted.shape[1]))
+                gIDs.append(gID)
+            else:
+                gID = list(get_connected_components(label_converted))
+                gIDs.append(gID)
+            
+            if args.cuda:
+                example = example.cuda()
+                rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
+                
+            Z = encoder(example, rel_rec, rel_send)
+            Z = F.softmax(Z, dim=-1)
+            #shape: [1, n_edges, 2]
+            
+            group_prob = Z[:,:,1] #shape: [1, n_edges]
+            group_prob = group_prob.squeeze(0) #shape: [n_edges]
+            group_prob = torch.diag_embed(group_prob) #shape: [n_edges, n_edges]
+            group_prob = torch.matmul(rel_send.t(), torch.matmul(group_prob, rel_rec))
+            #shape: [n_atoms, n_atoms]
+            group_prob = 0.5*(group_prob+group_prob.T)
+            group_prob = (group_prob>0.5).int()
+            group_prob = group_prob.cpu().detach().numpy()
+            
+            if group_prob.sum()==0:
+                pred_gIDs = np.arange(n_atoms)
+            else:
+                group_prob = sparse.csr_matrix(group_prob)
+                pred_gIDs = louvain.fit_transform(group_prob)
+                
+            predicted_gr.append(pred_gIDs)
+            
+            recall, precision, F1 = compute_groupMitre_labels(gID, pred_gIDs)
+            
+            recall_all.append(recall)
+            precision_all.append(precision)
+            F1_all.append(F1)
+            
+        average_recall = np.mean(recall_all)
+        average_precision = np.mean(precision_all)
+        average_F1 = np.mean(F1_all)
+        
+    print("Average recall: ", average_recall)
+    print("Average precision: ", average_precision)
+    print("Average F1: ", average_F1)
+    
+    print("Average recall: {:.10f}".format(average_recall),
+          "Average precision: {:.10f}".format(average_precision),
+          "Average_F1: {:.10f}".format(average_F1),
+          file=log)
+
+
+
     
     
 # Train model
@@ -489,6 +589,8 @@ if args.save_folder:
     log.flush()
 
 test()
+
+test_gmitre()
     
     
             
