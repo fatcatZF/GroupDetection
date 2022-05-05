@@ -28,7 +28,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
 parser.add_argument("--no-seed", action="store_true", default=False,
                     help="don't use seed")
-parser.add_argument('--epochs', type=int, default=500,
+parser.add_argument('--epochs', type=int, default=200,
                     help='Number of epochs to train.')
 parser.add_argument('--batch-size', type=int, default=128,
                     help='Number of samples per batch.')
@@ -107,7 +107,7 @@ if args.save_folder:
     exp_counter = 0
     now = datetime.datetime.now()
     timestamp = now.isoformat()
-    save_folder = '{}/exp{}/'.format(args.save_folder, timestamp)
+    save_folder = '{}/{}_{}_{}/'.format(args.save_folder, args.encoder, args.suffix ,timestamp)
     os.mkdir(save_folder)
     meta_file = os.path.join(save_folder, 'metadata.pkl')
     encoder_file = os.path.join(save_folder, 'nri_encoder.pt')
@@ -215,6 +215,10 @@ optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
                        lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
+
+
+acc_train_all = []
+mse_train_all = []
 
 
 def train(epoch, best_val_loss):
@@ -410,6 +414,9 @@ def train(epoch, best_val_loss):
               'time: {:.4f}s'.format(time.time() - t), file=log)
         log.flush()
         
+    acc_train_all.append(np.mean(acc_train))
+    mse_train_all.append(np.mean(mse_train))
+        
     return np.mean(loss_val)
 
 
@@ -587,6 +594,14 @@ print("Best Epoch: {:04d}".format(best_epoch+1))
 if args.save_folder:
     print("Best Epoch: {:04d}".format(best_epoch), file=log)
     log.flush()
+
+
+with open(os.path.join(save_folder, "acc_train.pkl"), 'wb') as f:
+    pickle.dump(acc_train_all, f)
+    
+with open(os.path.join(save_folder, "mse_train.pkl"), 'wb') as f:
+    pickle.dump(mse_train_all, f)
+    
 
 test()
 
