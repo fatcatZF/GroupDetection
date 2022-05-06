@@ -103,17 +103,33 @@ def load_spring_sim(batch_size=1, suffix='', label_rate=0.02, save_folder="data/
                datainfo[0], datainfo[1], datainfo[2], datainfo[3]
     
     
-    loc_train = np.load('data/simulation/spring_simulation/loc_sampled_all_train_group' + suffix + '.npy')
-    vel_train = np.load('data/simulation/spring_simulation/vel_sampled_all_train_group' + suffix + '.npy')
-    edges_train = np.load('data/simulation/spring_simulation/gr_train_group' + suffix + '.npy')
+    
+    loc_all = np.load('data/simulation/spring_simulation/loc_sampled_all_sim_group' + suffix + '.npy')
+    vel_all = np.load('data/simulation/spring_simulation/vel_sampled_all_sim_group' + suffix + '.npy')
+    edges_all = np.load('data/simulation/spring_simulation/gr_sim_group' + suffix + '.npy')
+    
+    num_sims = loc_all.shape[0]
+    indices = np.arange(num_sims)
+    np.random.shuffle(indices)
+    train_idx = int(num_sims*0.6)
+    valid_idx = int(num_sims*0.8)
+    train_indices = indices[:train_idx]
+    valid_indices = indices[train_idx:valid_idx]
+    test_indices = indices[valid_idx:]
+    
+    
+    
+    loc_train = loc_all[train_indices]
+    vel_train = vel_all[train_indices]
+    edges_train = edges_all[train_indices]
 
-    loc_valid = np.load('data/simulation/spring_simulation/loc_sampled_all_valid_group' + suffix + '.npy')
-    vel_valid = np.load('data/simulation/spring_simulation/vel_sampled_all_valid_group' + suffix + '.npy')
-    edges_valid = np.load('data/simulation/spring_simulation/gr_valid_group' + suffix + '.npy')
+    loc_valid = loc_all[valid_indices]
+    vel_valid = vel_all[valid_indices]
+    edges_valid = edges_all[valid_indices]
 
-    loc_test = np.load('data/simulation/spring_simulation/loc_sampled_all_test_group' + suffix + '.npy')
-    vel_test = np.load('data/simulation/spring_simulation/vel_sampled_all_test_group' + suffix + '.npy')
-    edges_test = np.load('data/simulation/spring_simulation/gr_test_group' + suffix + '.npy')
+    loc_test = loc_all[test_indices]
+    vel_test = vel_all[test_indices]
+    edges_test = edges_all[test_indices]
 
     # [num_samples, num_timesteps, num_dims, num_atoms]
     num_atoms = loc_train.shape[3]

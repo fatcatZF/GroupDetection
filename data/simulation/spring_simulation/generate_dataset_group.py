@@ -4,9 +4,9 @@ import numpy as np
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--num-train", type=int, default=1800)
-parser.add_argument("--num-valid", type=int, default=600)
-parser.add_argument("--num-test", type=int, default=600)
+parser.add_argument("--num-sim", type=int, default=2500)
+#parser.add_argument("--num-valid", type=int, default=600)
+#parser.add_argument("--num-test", type=int, default=600)
 parser.add_argument("--length", type=int, default=5000, help="length of trajectory.")
 parser.add_argument("--sample-freq", type=int, default=100, 
                     help="How often to sample the trajectory.")
@@ -30,6 +30,12 @@ sim = SpringSim(n_balls = args.n_balls, age_factor=args.age_factor,
                 dynamic=args.dynamic)
 
 suffix += str(args.n_balls)
+suffix += '_'
+suffix += str(int(args.K))
+suffix += '_'
+suffix += str(int(args.b*100))
+
+
 np.random.seed(args.seed)
 
 print(suffix)
@@ -81,54 +87,57 @@ def generate_dataset(num_sims, length, sample_freq):
 
 
 
-print("Generating {} training simulations".format(args.num_train))
-loc_sampled_all_train, vel_sampled_all_train, loc_all_train, vel_all_train, edges_all_sampled_train, edges_all_train, ga_train, gr_train,sampled_indices_all_train = generate_dataset(args.num_train,
+print("Generating {} simulations".format(args.num_sim))
+loc_sampled_all_sim, vel_sampled_all_sim, loc_all_sim, vel_all_sim, edges_all_sampled_sim, edges_all_sim, ga_sim, gr_sim, sampled_indices_all_sim = generate_dataset(args.num_sim,
                                                                                                                            args.length,
                                                                                                                            args.sample_freq)
-print("Generating {} validation simulations".format(args.num_valid))
-loc_sampled_all_valid, vel_sampled_all_valid, loc_all_valid, vel_all_valid,  edges_all_sampled_valid, edges_all_valid, ga_valid, gr_valid, sampled_indices_all_valid = generate_dataset(args.num_valid,
-                                                                                                                           args.length,
-                                                                                                                           args.sample_freq)
-print("Generating {} test simulations".format(args.num_test))
-loc_sampled_all_test, vel_sampled_all_test, loc_all_test, vel_all_test, edges_all_sampled_test, edges_all_test, ga_test, gr_test, sampled_indices_all_test = generate_dataset(args.num_test,
-                                                                                                                           args.length,
-                                                                                                                           args.sample_freq)
+#print("Generating {} validation simulations".format(args.num_valid))
+#loc_sampled_all_valid, vel_sampled_all_valid, loc_all_valid, vel_all_valid,  edges_all_sampled_valid, edges_all_valid, ga_valid, gr_valid, sampled_indices_all_valid = generate_dataset(args.num_valid,
+#                                                                                                                           args.length,
+#                                                                                                                           args.sample_freq)
+
+
+#print("Generating {} test simulations".format(args.num_test))
+#loc_sampled_all_test, vel_sampled_all_test, loc_all_test, vel_all_test, edges_all_sampled_test, edges_all_test, ga_test, gr_test, sampled_indices_all_test = generate_dataset(args.num_test,
+#                                                                                                                           args.length,
+#                                                                                                                           args.sample_freq)
+#
 
 
 
-np.save('loc_sampled_all_train' + suffix + '.npy', loc_sampled_all_train)
-np.save('vel_sampled_all_train' + suffix + '.npy', vel_sampled_all_train)
+np.save('loc_sampled_all_sim' + suffix + '.npy', loc_sampled_all_sim)
+np.save('vel_sampled_all_sim' + suffix + '.npy', vel_sampled_all_sim)
 #np.save('loc_all_train' + suffix + '.npy', loc_all_train)
 #np.save('vel_all_train' + suffix + '.npy', vel_all_train)
 #np.save("edges_all_train"+suffix+'.npy', edges_all_train)
 #np.save("sampled_indices_all_train"+suffix+'.npy', sampled_indices_all_train)
 
 
-np.save('loc_sampled_all_valid' + suffix + '.npy', loc_sampled_all_valid)
-np.save('vel_sampled_all_valid' + suffix + '.npy', vel_sampled_all_valid)
+#np.save('loc_sampled_all_valid' + suffix + '.npy', loc_sampled_all_valid)
+#np.save('vel_sampled_all_valid' + suffix + '.npy', vel_sampled_all_valid)
 #np.save('loc_all_valid' + suffix + '.npy', loc_all_valid)
 #np.save('vel_all_valid' + suffix + '.npy', vel_all_valid)
 #np.save("edges_all_valid"+suffix+'.npy', edges_all_valid)
 #np.save("sampled_indices_all_valid"+suffix+'.npy', sampled_indices_all_valid)
 
-np.save('loc_sampled_all_test' + suffix + '.npy', loc_sampled_all_test)
-np.save('vel_sampled_all_test' + suffix + '.npy', vel_sampled_all_test)
+#np.save('loc_sampled_all_test' + suffix + '.npy', loc_sampled_all_test)
+#np.save('vel_sampled_all_test' + suffix + '.npy', vel_sampled_all_test)
 #np.save('loc_all_test' + suffix + '.npy', loc_all_test)
 #np.save('vel_all_test' + suffix + '.npy', vel_all_test)
 #np.save("edges_all_test"+suffix+'.npy', edges_all_test)
 #np.save("sampled_indices_all_test"+suffix+'.npy', sampled_indices_all_test)
 
-np.save("edges_sampled_all_train"+suffix+'.npy', edges_all_sampled_train)
-np.save("edges_sampled_all_valid"+suffix+'.npy', edges_all_sampled_valid)
-np.save("edges_sampled_all_test"+suffix+'.npy', edges_all_sampled_test)
+np.save("edges_sampled_all_sim"+suffix+'.npy', edges_all_sampled_sim)
+#np.save("edges_sampled_all_valid"+suffix+'.npy', edges_all_sampled_valid)
+#np.save("edges_sampled_all_test"+suffix+'.npy', edges_all_sampled_test)
 
-np.save("ga_train"+suffix+'.npy', ga_train)
-np.save("ga_valid"+suffix+'.npy', ga_valid)
-np.save("ga_test"+suffix+'.npy', ga_test)
+np.save("ga_sim"+suffix+'.npy', ga_sim)
+#np.save("ga_valid"+suffix+'.npy', ga_valid)
+#np.save("ga_test"+suffix+'.npy', ga_test)
 
-np.save("gr_train"+suffix+'.npy', gr_train)
-np.save("gr_valid"+suffix+'.npy', gr_valid)
-np.save("gr_test"+suffix+'.npy', gr_test)
+np.save("gr_sim"+suffix+'.npy', gr_sim)
+#np.save("gr_valid"+suffix+'.npy', gr_valid)
+#np.save("gr_test"+suffix+'.npy', gr_test)
 
     
         
