@@ -107,7 +107,7 @@ if args.save_folder:
     exp_counter = 0
     now = datetime.datetime.now()
     timestamp = now.isoformat()
-    save_folder = '{}/{}_{}_{}/'.format(args.save_folder, args.encoder, args.suffix ,timestamp)
+    save_folder = '{}/{}_{}_{}_{}/'.format(args.save_folder, args.encoder, args.suffix, args.split, timestamp)
     os.mkdir(save_folder)
     meta_file = os.path.join(save_folder, 'metadata.pkl')
     encoder_file = os.path.join(save_folder, 'nri_encoder.pt')
