@@ -212,7 +212,7 @@ def load_spring_sim(batch_size=1, suffix='', label_rate=0.02, save_folder="data/
 
     train_data_loader = DataLoader(train_data, batch_size=batch_size)
     valid_data_loader = DataLoader(valid_data, batch_size=batch_size)
-    test_data_loader = DataLoader(test_data, batch_size=batch_size)
+    test_data_loader = DataLoader(test_data, batch_size=1)
     
     train_loader_path = os.path.join(save_folder, "train_data_loader"+suffix+".pth")
     valid_loader_path = os.path.join(save_folder, "valid_data_loader"+suffix+".pth")
