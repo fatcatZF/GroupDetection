@@ -408,6 +408,8 @@ def test_gmitre():
     
     rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
     rel_rec, rel_send = rel_rec.float(), rel_send.float()
+    if args.cuda:
+        rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
     
     encoder = torch.load(encoder_file)
     encoder.eval()    
