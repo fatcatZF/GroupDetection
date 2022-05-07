@@ -106,6 +106,10 @@ else:
 train_loader, valid_loader, test_loader, loc_max, loc_min, vel_max, vel_min = load_spring_sim(
     args.batch_size, args.suffix)
 
+print("Number of training examples: ", len(train_loader.dataset))
+print("Number of validation examples: ", len(valid_loader.dataset))
+print("Number of test examples: ", len(test_loader.dataset))
+
 
 off_diag = np.ones([args.num_atoms, args.num_atoms]) - np.eye(args.num_atoms)
 rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
