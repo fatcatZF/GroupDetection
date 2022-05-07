@@ -238,6 +238,8 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
 print(args, file=log)
 
 
+acc_train_all = []
+mse_train_all = []
 
 
 def train(epoch, best_val_loss):
@@ -404,6 +406,9 @@ def train(epoch, best_val_loss):
               'ngp_val: {:.10f}'.format(np.mean(ngp_val)),#non-average group precision
               'time: {:.4f}s'.format(time.time() - t), file=log)
         log.flush()
+        
+    acc_train_all.append(np.mean(acc_train))
+    mse_train_all.append(np.mean(mse_train))
         
     return np.mean(loss_val)
 
@@ -586,6 +591,14 @@ print("Best Epoch: {:04d}".format(best_epoch+1))
 if args.save_folder:
     print("Best Epoch: {:04d}".format(best_epoch), file=log)
     log.flush()
+
+
+
+with open(os.path.join(save_folder, "acc_train.pkl"), 'wb') as f:
+    pickle.dump(acc_train_all, f)
+    
+with open(os.path.join(save_folder, "mse_train.pkl"), 'wb') as f:
+    pickle.dump(mse_train_all, f)
 
 
 
