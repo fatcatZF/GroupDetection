@@ -197,7 +197,6 @@ else:
 
 if args.cuda:
     encoder.cuda()
-    decoder.cuda()
     rel_rec = rel_rec.cuda()
     rel_send = rel_send.cuda()
     triu_indices = triu_indices.cuda()
