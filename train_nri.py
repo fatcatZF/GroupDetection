@@ -16,6 +16,10 @@ from utils import *
 from data_utils import *
 from models_NRI import *
 
+from sknetwork.topology import get_connected_components
+from sknetwork.clustering import Louvain
+from scipy import sparse
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
@@ -35,7 +39,7 @@ parser.add_argument('--decoder-hidden', type=int, default=256,
                     help='Number of hidden units.')
 parser.add_argument('--temp', type=float, default=0.5,
                     help='Temperature for Gumbel softmax.')
-parser.add_argument('--num-atoms', type=int, default=5,
+parser.add_argument('--num-atoms', type=int, default=10,
                     help='Number of atoms in simulation.')
 parser.add_argument('--encoder', type=str, default='rescnn',
                     help='Type of path encoder model (cnn or rescnn).')
@@ -47,7 +51,7 @@ parser.add_argument('--no-factor', action='store_true', default=False,
 parser.add_argument("--use-motion", action="store_true", default=False,
                     help="use motion")
 
-parser.add_argument('--suffix', type=str, default='_static_5',
+parser.add_argument('--suffix', type=str, default='_static_10_3_3',
                     help='Suffix for training data (e.g. "_charged".')
 
 parser.add_argument('--encoder-dropout', type=float, default=0.,
@@ -109,7 +113,10 @@ if args.save_folder:
     exp_counter = 0
     now = datetime.datetime.now()
     timestamp = now.isoformat()
-    save_folder = '{}/exp{}/'.format(args.save_folder, timestamp)
+    #save_folder = '{}/exp{}/'.format(args.save_folder, timestamp)
+    save_folder = "{}/{}_{}_{}".format(args.save_folder, args.encoder, args.suffix ,timestamp)
+    if args.use_motion:
+        save_folder += "_use_motion"
     os.mkdir(save_folder)
     meta_file = os.path.join(save_folder, 'metadata.pkl')
     encoder_file = os.path.join(save_folder, 'nri_encoder.pt')
@@ -226,6 +233,9 @@ optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()),
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
 
+
+
+print(args, file=log)
 
 
 
@@ -419,8 +429,11 @@ def test():
     for batch_idx, (data, relations) in enumerate(test_loader):
         if args.cuda:
             data, relations = data.cuda(), relations.cuda()
-        
+            #data; shape:[n_sims, n_atoms, n_timesteps, n_in]
+            #relations: shape: [n_sims, n_edges]
+            
         logits = encoder(data, rel_rec, rel_send)
+        #shape
         edges = F.gumbel_softmax(logits, tau=args.temp, hard=True, dim=-1)
         prob = F.softmax(logits, dim=-1)
         
@@ -457,7 +470,98 @@ def test():
           )
         
         
+
+
+
+def test_gmitre():
+    """
+    test group mitre recall and precision   
+    """
+    louvain = Louvain()
+    
+    rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
+    rel_rec, rel_send = rel_rec.float(), rel_send.float()
+    
+    encoder = torch.load(encoder_file)
+    encoder.eval()    
+    
+    
+
+    gIDs = []
+    predicted_gr = []
+    
+    precision_all = []
+    recall_all = []
+    F1_all = []
+    
+    
+    with torch.no_grad():
+        for batch_idx, (data, relations) in enumerate(test_loader):
+            if args.cuda:
+                data, relations = data.cuda(), relations.cuda()
+                #data shape: [1, n_atoms, n_timesteps, n_in]
+                #relations, shape: [1, n_edges]
+            
+            relations = relations.squeeze(0) #shape: [n_edges]
+            label = torch.diag_embed(relations) #shape: [n_edges, n_edges]
+            label = label.float()
+            label_converted = torch.matmul(rel_send.t(), 
+                                           torch.matmul(label, rel_rec))
+            label_converted = label_converted.cpu().detach().numpy()
+            #shape: [n_atoms, n_atoms]
+            
+            if label_converted.sum()==0:
+                gID = list(range(label_converted.shape[1]))
+                gIDs.append(gID)
+            else:
+                gID = list(get_connected_components(label_converted))
+                gIDs.append(gID)
+            
+            if args.cuda:
+                data = data.cuda()
+                rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
+                
+            Z = encoder(data, rel_rec, rel_send)
+            Z = F.softmax(Z, dim=-1)
+            #shape: [1, n_edges, 2]
+            
+            group_prob = Z[:,:,1] #shape: [1, n_edges]
+            group_prob = group_prob.squeeze(0) #shape: [n_edges]
+            group_prob = torch.diag_embed(group_prob) #shape: [n_edges, n_edges]
+            group_prob = torch.matmul(rel_send.t(), torch.matmul(group_prob, rel_rec))
+            #shape: [n_atoms, n_atoms]
+            group_prob = 0.5*(group_prob+group_prob.T)
+            group_prob = (group_prob>0.5).int()
+            group_prob = group_prob.cpu().detach().numpy()
+            
+            if group_prob.sum()==0:
+                pred_gIDs = np.arange(args.num_atoms)
+            else:
+                group_prob = sparse.csr_matrix(group_prob)
+                pred_gIDs = louvain.fit_transform(group_prob)
+                
+            predicted_gr.append(pred_gIDs)
+            
+            recall, precision, F1 = compute_groupMitre_labels(gID, pred_gIDs)
+            
+            recall_all.append(recall)
+            precision_all.append(precision)
+            F1_all.append(F1)
+            
+        average_recall = np.mean(recall_all)
+        average_precision = np.mean(precision_all)
+        average_F1 = np.mean(F1_all)
         
+    print("Average recall: ", average_recall)
+    print("Average precision: ", average_precision)
+    print("Average F1: ", average_F1)
+    
+    print("Average recall: {:.10f}".format(average_recall),
+          "Average precision: {:.10f}".format(average_precision),
+          "Average_F1: {:.10f}".format(average_F1),
+          file=log)
+    
+            
         
         
     
@@ -479,7 +583,11 @@ if args.save_folder:
     print("Best Epoch: {:04d}".format(best_epoch), file=log)
     log.flush()
 
+
+
 test()
+
+test_gmitre()
 
             
     

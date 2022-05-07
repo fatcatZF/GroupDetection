@@ -214,7 +214,7 @@ class LSTMDecoder(nn.Module):
     """
     LSTM Decoder
     """
-    def __init__(self, n_in, n_emb, n_context, n_noise=16):
+    def __init__(self, n_in, n_emb, n_context, n_noise=4):
         super(LSTMDecoder, self).__init__()
         self.fc_emb = nn.Linear(n_in, n_emb)
         self.lstm_cell = LSTMCell(n_emb, n_context+n_noise)
@@ -287,7 +287,7 @@ class LSTMGenerator(nn.Module):
         self.lstm_contextEncoder= LSTMContextEncoder(n_in, n_emb, n_hid)
         self.lstm_decoder=LSTMDecoder(n_in, n_emb, 2*n_hid, n_noise)
         
-    def forward(self, inputs, noise, rel_rec, rel_send, rel_rec_t, rel_send_t, teaching=False):
+    def forward(self, inputs, noise, rel_rec, rel_send, rel_rec_t, rel_send_t, teaching=True):
         """
         args:
             inputs: [batch_size, n_atoms, n_timesteps, n_in]

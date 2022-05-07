@@ -1053,9 +1053,9 @@ class CNNEncoderSym(nn.Module):
         self.mlp3 = MLP(n_hid*2, n_hid, n_hid, do_prob)
         self.fc_out = nn.Linear(n_hid, n_out)
         if self.factor:
-            print("Using factor graph Wavenet encoder with symmetric Features")
+            print("Using factor graph CNN encoder with symmetric Features")
         else:
-            print("Using Wavenet encoder with symmetric Features.")
+            print("Using CNN encoder with symmetric Features.")
         self.init__weights()
         
     def init__weights(self):
@@ -1259,6 +1259,25 @@ class WavenetEncoderRaw(nn.Module):
                 
     
         
+class ZeroEncoder(nn.Module):
+    """
+    Encoder always return zero
+    """
+    def __init__(self, n_in, n_hid, n_out, kernel_size=5,  depth=1, do_prob=0.,
+                factor=True, use_motion=False):
+        super(ZeroEncoder,self).__init__()
+        
+    def forward(self, inputs, rel_rec, rel_send):
+        #inputs: [batch_size, n_atoms, n_timesteps, n_dims]
+        
+        batch_size = inputs.size(0)
+        n_atoms = inputs.size(1)
+        
+        zeros = torch.zeros(batch_size, n_atoms*(n_atoms-1), 2)
+        if inputs.is_cuda:
+            zeros = zeros.cuda()
+            
+        return zeros
     
     
 

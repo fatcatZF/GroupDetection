@@ -16,6 +16,11 @@ from utils import *
 from data_utils import *
 from models_NRI import *
 
+
+from sknetwork.topology import get_connected_components
+from sknetwork.clustering import Louvain
+from scipy import sparse
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--no-cuda", action="store_true", default=False, 
                     help="Disables CUDA training.")
@@ -30,13 +35,13 @@ parser.add_argument("--lr", type=float, default=0.0005,
                     help="Initial learning rate.")
 parser.add_argument("--encoder-hidden", type=int, default=256,
                     help="Number of hidden units.")
-parser.add_argument("--num-atoms", type=int, default=5,
+parser.add_argument("--num-atoms", type=int, default=10,
                     help="Number of atoms.")
 parser.add_argument("--encoder", type=str, default="wavenet",
                     help="Type of encoder model.")
 parser.add_argument("--no-factor", action="store_true", default=False,
                     help="Disables factor graph model.")
-parser.add_argument("--suffix", type=str, default="_static_5",
+parser.add_argument("--suffix", type=str, default="_static_10_3_3",
                     help="Suffix for training data ")
 parser.add_argument("--use-motion", action="store_true", default=False,
                     help="use increments")
@@ -58,6 +63,10 @@ parser.add_argument("--gamma", type=float, default=0.5,
                     help="LR decay factor.")
 parser.add_argument("--group-weight", type=float, default=0.5,
                     help="group weight.")
+parser.add_argument("--ng-weight", type=float, default=0.5,
+                    help="Non-group weight")
+parser.add_argument("--gweight-auto", action="store_true", default=False,
+                    help = "automatically determine group/non-group weights.")
 
 
 args = parser.parse_args()
@@ -78,7 +87,9 @@ if args.save_folder:
     exp_counter = 0
     now = datetime.datetime.now()
     timestamp = now.isoformat()
-    save_folder = "{}/exp{}/".format(args.save_folder, timestamp)
+    save_folder = "{}/su_{}_{}_{}".format(args.save_folder, args.encoder, args.suffix ,timestamp)
+    if args.use_motion:
+        save_folder += "_use_motion"
     os.mkdir(save_folder)
     meta_file = os.path.join(save_folder, "metadata.pkl")
     encoder_file = os.path.join(save_folder, "nri_encoder.pt")
@@ -150,7 +161,33 @@ if args.load_folder:
 triu_indices = get_triu_offdiag_indices(args.num_atoms)
 tril_indices = get_tril_offdiag_indices(args.num_atoms)
 
-cross_entropy_weight = torch.tensor([1-args.group_weight, args.group_weight])
+
+
+def compute_label_weights(train_loader, eps=1e-4):
+    total_gr = 0
+    total_ngr = 0
+    for batch_idx, (data, relations) in enumerate(train_loader):
+        relations = relations.float()
+        relations, relations_masked = relations[:,:,0], relations[:,:,1]
+        n_gr = relations.sum()
+        n_ngr = (relations==0).sum()
+        total_gr += n_gr
+        total_ngr += n_ngr
+    group_weight = (total_gr+total_ngr)/(2*total_gr+eps)
+    ng_weight = (total_gr+total_ngr)/(2*total_ngr+eps)
+    
+    return ng_weight, group_weight
+
+
+if args.gweight_auto:
+    ng_weight, g_weight = compute_label_weights(train_loader)
+    print("Group Label Weight: ", g_weight.item())
+    print("Non-Group Label Weight: ", ng_weight.item())
+    cross_entropy_weight = torch.tensor([ng_weight.item(), g_weight.item()])
+else:
+    cross_entropy_weight = torch.tensor([args.ng_weight, args.group_weight])
+    
+
 
 
 
@@ -167,6 +204,14 @@ if args.cuda:
 optimizer = optim.Adam(list(encoder.parameters()),lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
                                 gamma=args.gamma)
+
+
+print(args, file=log)
+
+
+
+
+
 
 
 def train(epoch, best_val_F1):
@@ -201,7 +246,7 @@ def train(epoch, best_val_F1):
         output = logits.view(logits.size(0)*logits.size(1),-1)
         target = relations.view(-1)
         
-        loss = F.cross_entropy(output, target.long())
+        loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
         loss.backward()
         
         optimizer.step()
@@ -235,7 +280,7 @@ def train(epoch, best_val_F1):
             #Flatten batch dim
             output = logits.view(logits.size(0)*logits.size(1),-1)
             target = relations.view(-1)
-            loss = F.cross_entropy(output, target.long())
+            loss = F.cross_entropy(output, target.long(), weight=cross_entropy_weight)
             
             acc = edge_accuracy(logits, relations)
             acc_val.append(acc)
@@ -352,6 +397,96 @@ def test():
     
 
 
+def test_gmitre():
+    """
+    test group mitre recall and precision   
+    """
+    louvain = Louvain()
+    
+    rel_rec, rel_send = create_edgeNode_relation(args.num_atoms, self_loops=False)
+    rel_rec, rel_send = rel_rec.float(), rel_send.float()
+    
+    encoder = torch.load(encoder_file)
+    encoder.eval()    
+    
+    
+
+    gIDs = []
+    predicted_gr = []
+    
+    precision_all = []
+    recall_all = []
+    F1_all = []
+    
+    
+    with torch.no_grad():
+        for batch_idx, (data, relations) in enumerate(test_loader):
+            if args.cuda:
+                data, relations = data.cuda(), relations.cuda()
+                #data shape: [1, n_atoms, n_timesteps, n_in]
+                #relations, shape: [1, n_edges]
+            
+            relations = relations.squeeze(0) #shape: [n_edges]
+            label = torch.diag_embed(relations) #shape: [n_edges, n_edges]
+            label = label.float()
+            label_converted = torch.matmul(rel_send.t(), 
+                                           torch.matmul(label, rel_rec))
+            label_converted = label_converted.cpu().detach().numpy()
+            #shape: [n_atoms, n_atoms]
+            
+            if label_converted.sum()==0:
+                gID = list(range(label_converted.shape[1]))
+                gIDs.append(gID)
+            else:
+                gID = list(get_connected_components(label_converted))
+                gIDs.append(gID)
+            
+            if args.cuda:
+                data = data.cuda()
+                rel_rec, rel_send = rel_rec.cuda(), rel_send.cuda()
+                
+            Z = encoder(data, rel_rec, rel_send)
+            Z = F.softmax(Z, dim=-1)
+            #shape: [1, n_edges, 2]
+            
+            group_prob = Z[:,:,1] #shape: [1, n_edges]
+            group_prob = group_prob.squeeze(0) #shape: [n_edges]
+            group_prob = torch.diag_embed(group_prob) #shape: [n_edges, n_edges]
+            group_prob = torch.matmul(rel_send.t(), torch.matmul(group_prob, rel_rec))
+            #shape: [n_atoms, n_atoms]
+            group_prob = 0.5*(group_prob+group_prob.T)
+            group_prob = (group_prob>0.5).int()
+            group_prob = group_prob.cpu().detach().numpy()
+            
+            if group_prob.sum()==0:
+                pred_gIDs = np.arange(args.num_atoms)
+            else:
+                group_prob = sparse.csr_matrix(group_prob)
+                pred_gIDs = louvain.fit_transform(group_prob)
+                
+            predicted_gr.append(pred_gIDs)
+            
+            recall, precision, F1 = compute_groupMitre_labels(gID, pred_gIDs)
+            
+            recall_all.append(recall)
+            precision_all.append(precision)
+            F1_all.append(F1)
+            
+        average_recall = np.mean(recall_all)
+        average_precision = np.mean(precision_all)
+        average_F1 = np.mean(F1_all)
+        
+    print("Average recall: ", average_recall)
+    print("Average precision: ", average_precision)
+    print("Average F1: ", average_F1)
+    
+    print("Average recall: {:.10f}".format(average_recall),
+          "Average precision: {:.10f}".format(average_precision),
+          "Average_F1: {:.10f}".format(average_F1),
+          file=log)
+
+
+
 #Train model
 t_total = time.time()
 best_val_F1 = -1.
@@ -365,6 +500,10 @@ for epoch in range(args.epochs):
         
 print("Optimization Finished!")
 print("Best Epoch: {:04d}".format(best_epoch))
+
+
+test()
+test_gmitre()
         
     
     
