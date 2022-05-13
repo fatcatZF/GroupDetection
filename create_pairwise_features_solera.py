@@ -4,6 +4,8 @@ import os
 from utils import *
 from models_solera import *
 
+import argparse
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--data-folder', type=str, default="students03",
                     help='data folder name.')
