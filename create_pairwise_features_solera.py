@@ -17,7 +17,7 @@ args = parser.parse_args()
 data_path = os.path.join("data/pedestrian", args.data_folder)
 data_path = os.path.join(data_path, args.split)
 
-data_path = os.path.join(data_folder, split)
+#data_path = os.path.join(data_folder, split)
 print("data_path: ", data_path)
 
 
