@@ -385,6 +385,13 @@ def compute_groupMitre(target, predict):
     return recall, precision, F1
 
 
+def compute_gmitre_loss(target, predict):
+    _,_, F1 = compute_groupMitre(target, predict)
+    return 1-F1
+
+
+
+
 
 def compute_groupMitre_labels(target, predict):
     """
