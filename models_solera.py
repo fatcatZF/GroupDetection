@@ -3,6 +3,10 @@ from scipy.stats import norm
 from statsmodels.tsa.stattools import grangercausalitytests
 import tslearn.metrics
 
+import itertools
+from itertools import combinations
+
+from utils import *
 
 #Gaussian Mixture Models
 N0 = norm(0, 0.5)
@@ -300,8 +304,134 @@ def compute_sims(example, ground):
     
     sim = np.concatenate([gmm_sim, dtw_sim, heatmap_sim], axis=-1)
     dissim = np.concatenate([gmm_dissim, dtw_dissim, heatmap_dissim], axis=-1)
+    combined_features = np.concatenate([sim, dissim], axis=-1)
     
-    return sim, dissim
+    return sim, dissim, combined_features
+
+
+
+
+
+def compute_all_clusterings(indices):
+    """
+    args:
+        indices: indices of items
+    """
+    if len(indices)==1:
+        yield [indices]
+        return
+    first = indices[0]
+    for smaller in compute_all_clusterings(indices[1:]):
+        # insert "first" in each of the subpartition's subsets
+        for n, subset in enumerate(smaller):
+            yield smaller[:n]+[[first]+subset]+smaller[n+1:]
+        yield [[first]]+smaller
+
+
+
+
+
+def compute_clustering_score(sims, clustering):
+    """
+    args:
+        sims: similarity matrix
+        clustering: list of lists denoting clusters
+    """
+    score = 0.
+    for cluster in clustering:
+        if len(cluster)>=2:
+            combs = list(combinations(cluster, 2))
+            for comb in combs:
+                score += sims[comb]
+    return score
+
+
+
+
+
+def merge_2_clusters(current_clustering, indices):
+    """
+    merge 2 clusters of current clustering
+    args:
+        current_clustering: list of lists denoting clusters
+        indices(tuple): indices of 2 clusters of current clustering
+    """
+    assert len(current_clustering)>1
+    num_clusters = len(current_clustering)
+    cluster1 = current_clustering[indices[0]]
+    cluster2 = current_clustering[indices[1]]
+    merged_cluster = cluster1+cluster2
+    new_clustering = [merged_cluster]
+    for i in range(num_clusters):
+        if i!=indices[0] and i!=indices[1]:
+            new_clustering.append(current_clustering[i])
+    return new_clustering
+
+
+
+
+
+
+def greedy_approximate_best_clustering(sims):
+    """
+    args:
+        sims(numpy ndarray): similarity matrices, shape:[n_atoms, n_atoms]
+        current_clustering: a list of lists denoting clusters
+        current_score: current clustering score
+    """
+    num_atoms = sims.shape[0]
+    current_cluster_indices = list(range(num_atoms))
+    current_clustering = [[i] for i in current_cluster_indices]
+    current_score = 0.
+    merge_2_indices = list(combinations(current_cluster_indices, 2))
+    best_clustering = current_clustering
+    
+    
+    while(True):
+        #merge 2 clusters hierachically
+        
+        #if len(current_clustering)==1: #cannot be merged anymore
+        #    return current_clustering, current_score
+        
+        best_delta = 0
+        for merge_index in merge_2_indices:
+            new_clustering = merge_2_clusters(current_clustering, merge_index)
+            new_score = compute_clustering_score(sims, new_clustering)
+            delta = new_score-current_score
+            if delta>best_delta:
+                best_clustering = new_clustering
+                best_delta = delta
+                current_score = new_score
+        if best_delta==0:
+            return best_clustering, current_score
+        
+        current_clustering = best_clustering
+        current_num_clusters = len(current_clustering)
+        if current_num_clusters==1:
+            return current_clustering, current_score
+        cluster_indices = list(range(current_num_clusters))
+        merge_2_indices = list(combinations(cluster_indices, 2))
+        
+        
+
+
+
+def compute_features_matrix(features, n_atoms):
+    """
+    compute feature matrix given edge features
+    args:
+      features: [n_edges, n_in]
+      n_atoms: number of atoms
+    """
+    assert features.shape[0]==n_atoms*(n_atoms-1)
+    features_matrix = features.reshape(n_atoms, n_atoms-1, -1)
+    features_matrix = features_matrix.tolist()
+    for i in range(len(features_matrix)):
+        feature = [0]*features.shape[1]
+        features_matrix[i].insert(i, feature)
+    features_matrix = np.array(features_matrix)
+    
+    return features_matrix
 
 
 
@@ -310,20 +440,187 @@ def compute_sims(example, ground):
 
 
 
+def compute_combined_rep(example, ground ,clustering):
+    """
+    compute combined feature representation
+    args:
+        example: [n_atoms, n_timesteps, n_shape]
+        ground: [R, C, 2]
+        clustering: a list of lists denoting clusters
+    return:
+        combined feature representation
+    """
+    n_atoms = example.shape[0]
+    _, _ ,features = compute_sims(example, ground)
+    #features shape: [n_atoms*(n_atoms-1), n_features]
+    features_matrix = compute_features_matrix(features, n_atoms)
+    
+    combined_rep = np.zeros(features.shape[1])
+    for cluster in clustering:
+        combs = list(combinations(cluster, 2))
+        for index in combs:
+            combined_rep += features_matrix[index]
+            
+    return combined_rep
 
 
 
 
+def compute_delta_rep(example, ground, label, predicted):
+    """
+    compute delta representation
+    args:
+      label: label clustering
+      predicted: predicted clustering
+    """
+    combined_rep_label = compute_combined_rep(example, ground, label)
+    combined_rep_pred = compute_combined_rep(example, ground, predicted)
+    delta_rep = combined_rep_label-combined_rep_pred
+    return delta_rep
 
 
 
 
+def compute_structured_hinge(example, ground, label, predicted, w):
+    """
+    compute structured hinge loss
+    args:
+        example, shape: [n_atoms, n_timesteps, n_in]
+        label/predicted: label and predicted clustering
+    """
+    gmitre = compute_gmitre_loss(label, predicted)
+    delta_rep = compute_delta_rep(example, ground, label, predicted)
+    return gmitre-np.dot(w, delta_rep), gmitre, delta_rep
 
 
 
 
+def approximate_most_violated(example, ground, label, w):
+    """
+    greedy approximate most violated clustering
+    args:
+        example, shape: [n_atoms, n_timesteps, n_in]
+        label: clustering, a list of lists denoting clusters
+        w: weights
+    """
+    n_atoms = example.shape[0]
+    current_cluster_indices = list(range(n_atoms))
+    current_clustering = [[i] for i in current_cluster_indices]
+    hinge_loss, gmitre, delta_rep = compute_structured_hinge(example, ground, label, current_clustering, w)
+    merge_2_indices = list(combinations(current_cluster_indices, 2))
+    worst_clustering = current_clustering
+    
+    while(True):
+        #merge 2 clusters hierachically
+        #if len(current_clustering)==1:
+        #    return current_clustering, hinge_loss, gmitre, delta_rep
+        most_delta = 0
+        for merge_index in merge_2_indices:
+            new_clustering = merge_2_clusters(current_clustering, merge_index)
+            new_hinge_loss, new_gmitre, new_delta_rep = compute_structured_hinge(example, ground, label, new_clustering, w)
+            delta = new_hinge_loss-hinge_loss
+            if delta>most_delta:
+                worst_clustering=new_clustering
+                most_delta = delta
+                hinge_loss = new_hinge_loss
+                gmitre = new_gmitre
+                delta_rep = new_delta_rep
+        if most_delta==0:
+            return worst_clustering, hinge_loss, gmitre, delta_rep
+        
+        current_clustering = worst_clustering
+        current_num_clusters = len(current_clustering)
+        if current_num_clusters==1:
+            return current_clustering, hinge_loss, gmitre, delta_rep
+        cluster_indices = list(range(current_num_clusters))
+        merge_2_indices = list(combinations(cluster_indices, 2))
+        
 
 
+
+
+class SoleraSVM:
+    def __init__(self, n_features=6):
+        self.__init_weights(n_features)
+        self.__init_l(n_features)
+    
+    def __init_weights(self, n_features):
+        #initialize weights
+        self.w = np.zeros(n_features)
+        
+        
+    def __init_l(self, n_features):
+        #initialize l
+        self.l = 0.
+    
+    def fit_1_example(self, example, ground ,label, n_examples, wi, li, C):
+        """
+        train model with BCFW algorithm
+        """
+        worst_clustering, hinge_loss, gmitre, delta_rep = approximate_most_violated(example, ground, label, self.w)
+        ws = (C/n_examples)*delta_rep
+        ls = (C/n_examples)*gmitre
+        gamma = (np.dot((wi-ws), self.w)+(C/n_examples)*(ls-li))/np.sqrt((wi-ws)**2)
+        gamma[gamma>1]=1
+        gamma[gamma<0]=0
+        wi_new = (1-gamma)*wi+gamma*ws
+        li_new = (1-gamma)*li+gamma*ls
+        self.w = self.w+wi_new-wi
+        self.l = self.l+li_new-li
+        return wi_new, li_new, gmitre, hinge_loss
+        
+    
+    def fit(self, examples, ground ,labels , n_iters, C=10., verbose=0):
+        """
+        train model with BCFW algorithm
+        args:
+            examples: a list of training examples
+            labels: a list of labels
+            c: regularization parameter
+        """
+        n_features = self.w.shape[0]
+        n_examples = len(examples)
+        indices_training = np.arange(n_examples)
+        
+        wis = np.zeros((indices_training.shape[0], n_features))
+        self.wis_dict = dict(zip(indices_training, wis))
+        lis = np.zeros(len(indices_training))
+        self.lis_dict = dict(zip(indices_training, lis))
+        
+        for i in range(n_iters):
+            current_index = np.random.choice(indices_training, 1)[0]
+            current_example = examples[current_index]
+            current_label = labels[current_index]
+            wi = self.wis_dict[current_index]
+            li = self.lis_dict[current_index]
+            wi_new, li_new, gmitre, hinge_loss = self.fit_1_example(current_example, ground,
+                                                  current_label, n_examples, wi, li, C)
+            self.wis_dict[current_index]=wi_new
+            self.lis_dict[current_index]=li_new
+            if verbose>0:
+                print("Iteraction: {:04d}".format(i+1),
+                      "current example index: {:04d}".format(current_index),
+                     "Group Mitre Loss: {:.10f}".format(gmitre),
+                     "hinge Loss: {:.10f}".format(hinge_loss))
+        
+        
+    
+    def predict(self, example, ground):
+        """
+        args:
+          example(numpy ndarray, shape: [n_atoms, n_timesteps, n_in]
+        return:
+          predicted clustering: a list of lists denoting cluster
+        """
+        n_atoms = example.shape[0]
+        rel_rec,rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+        _, _ ,features = compute_sims(example, ground)
+        #compute similarity matrix
+        sims_values = np.matmul(features, self.w)
+        sims_values = np.diag(sims_values)
+        sims = np.matmul(rel_send.T, np.matmul(sims_values, rel_rec))
+        best_clustering, current_score = greedy_approximate_best_clustering(sims)
+        return best_clustering, current_score
 
 
 
