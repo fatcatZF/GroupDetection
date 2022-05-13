@@ -440,7 +440,7 @@ def compute_features_matrix(features, n_atoms):
 
 
 
-def compute_combined_rep(example, ground ,clustering):
+def compute_combined_rep(example, ground ,clustering, features=None):
     """
     compute combined feature representation
     args:
@@ -451,8 +451,9 @@ def compute_combined_rep(example, ground ,clustering):
         combined feature representation
     """
     n_atoms = example.shape[0]
-    _, _ ,features = compute_sims(example, ground)
-    #features shape: [n_atoms*(n_atoms-1), n_features]
+    if features is None:
+        _, _ ,features = compute_sims(example, ground)
+        #features shape: [n_atoms*(n_atoms-1), n_features]
     features_matrix = compute_features_matrix(features, n_atoms)
     
     combined_rep = np.zeros(features.shape[1])
@@ -466,22 +467,23 @@ def compute_combined_rep(example, ground ,clustering):
 
 
 
-def compute_delta_rep(example, ground, label, predicted):
+def compute_delta_rep(example, ground, label, predicted, features=None):
     """
     compute delta representation
     args:
       label: label clustering
       predicted: predicted clustering
+      features: [n_edges, n_in]
     """
-    combined_rep_label = compute_combined_rep(example, ground, label)
-    combined_rep_pred = compute_combined_rep(example, ground, predicted)
+    combined_rep_label = compute_combined_rep(example, ground, label, features)
+    combined_rep_pred = compute_combined_rep(example, ground, predicted, features)
     delta_rep = combined_rep_label-combined_rep_pred
     return delta_rep
 
 
 
 
-def compute_structured_hinge(example, ground, label, predicted, w):
+def compute_structured_hinge(example, ground, label, predicted, w, features=None):
     """
     compute structured hinge loss
     args:
@@ -489,13 +491,13 @@ def compute_structured_hinge(example, ground, label, predicted, w):
         label/predicted: label and predicted clustering
     """
     gmitre = compute_gmitre_loss(label, predicted)
-    delta_rep = compute_delta_rep(example, ground, label, predicted)
+    delta_rep = compute_delta_rep(example, ground, label, predicted, features)
     return gmitre-np.dot(w, delta_rep), gmitre, delta_rep
 
 
 
 
-def approximate_most_violated(example, ground, label, w):
+def approximate_most_violated(example, ground, label, w, features=None):
     """
     greedy approximate most violated clustering
     args:
@@ -506,7 +508,7 @@ def approximate_most_violated(example, ground, label, w):
     n_atoms = example.shape[0]
     current_cluster_indices = list(range(n_atoms))
     current_clustering = [[i] for i in current_cluster_indices]
-    hinge_loss, gmitre, delta_rep = compute_structured_hinge(example, ground, label, current_clustering, w)
+    hinge_loss, gmitre, delta_rep = compute_structured_hinge(example, ground, label, current_clustering, w, features)
     merge_2_indices = list(combinations(current_cluster_indices, 2))
     worst_clustering = current_clustering
     
@@ -517,7 +519,8 @@ def approximate_most_violated(example, ground, label, w):
         most_delta = 0
         for merge_index in merge_2_indices:
             new_clustering = merge_2_clusters(current_clustering, merge_index)
-            new_hinge_loss, new_gmitre, new_delta_rep = compute_structured_hinge(example, ground, label, new_clustering, w)
+            new_hinge_loss, new_gmitre, new_delta_rep = compute_structured_hinge(example, ground, 
+                                                                                 label, new_clustering, w, features)
             delta = new_hinge_loss-hinge_loss
             if delta>most_delta:
                 worst_clustering=new_clustering
@@ -553,16 +556,22 @@ class SoleraSVM:
         #initialize l
         self.l = 0.
     
-    def fit_1_example(self, example, ground ,label, n_examples, wi, li, C):
+    def fit_1_example_bcfw(self, example, ground ,label, n_examples, wi, li, C, features):
         """
         train model with BCFW algorithm
         """
-        worst_clustering, hinge_loss, gmitre, delta_rep = approximate_most_violated(example, ground, label, self.w)
+        worst_clustering, hinge_loss, gmitre, delta_rep = approximate_most_violated(example, 
+                                                                                    ground, label, self.w, features)
         ws = (C/n_examples)*delta_rep
         ls = (C/n_examples)*gmitre
-        gamma = (np.dot((wi-ws), self.w)+(C/n_examples)*(ls-li))/np.sqrt((wi-ws)**2)
-        gamma[gamma>1]=1
-        gamma[gamma<0]=0
+        #print("ws: ",ws)
+        #print("ls: ",ls)
+        gamma = (np.dot((wi-ws), self.w)+(C/n_examples)*(ls-li))/(((wi-ws)**2).sum()+1e-6)
+        #print("gamma: ",gamma)
+        if gamma>1:
+            gamma=1
+        if gamma<0:
+            gamma=0
         wi_new = (1-gamma)*wi+gamma*ws
         li_new = (1-gamma)*li+gamma*ls
         self.w = self.w+wi_new-wi
@@ -570,7 +579,12 @@ class SoleraSVM:
         return wi_new, li_new, gmitre, hinge_loss
         
     
-    def fit(self, examples, ground ,labels , n_iters, C=10., verbose=0):
+    def fit_minibatch_fw(self, examples, ground, labels, batch_size, wis, lis, C, batch_features):
+        pass
+    
+    
+    
+    def fit(self, examples, ground ,labels , n_iters, C=10., verbose=0, verbose_iters=100 ,pairwise_features=None):
         """
         train model with BCFW algorithm
         args:
@@ -593,11 +607,17 @@ class SoleraSVM:
             current_label = labels[current_index]
             wi = self.wis_dict[current_index]
             li = self.lis_dict[current_index]
-            wi_new, li_new, gmitre, hinge_loss = self.fit_1_example(current_example, ground,
-                                                  current_label, n_examples, wi, li, C)
+            
+            if pairwise_features is not None:
+                features = pairwise_features[current_index]
+            else:
+                features = None
+            
+            wi_new, li_new, gmitre, hinge_loss = self.fit_1_example_bcfw(current_example, ground,
+                                                  current_label, n_examples, wi, li, C, features)
             self.wis_dict[current_index]=wi_new
             self.lis_dict[current_index]=li_new
-            if verbose>0:
+            if verbose>0 and (i+1)%verbose_iters==0:
                 print("Iteraction: {:04d}".format(i+1),
                       "current example index: {:04d}".format(current_index),
                      "Group Mitre Loss: {:.10f}".format(gmitre),
@@ -605,7 +625,7 @@ class SoleraSVM:
         
         
     
-    def predict(self, example, ground):
+    def predict(self, example, ground, features=None):
         """
         args:
           example(numpy ndarray, shape: [n_atoms, n_timesteps, n_in]
@@ -614,7 +634,8 @@ class SoleraSVM:
         """
         n_atoms = example.shape[0]
         rel_rec,rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
-        _, _ ,features = compute_sims(example, ground)
+        if features is None:
+            _, _ ,features = compute_sims(example, ground)
         #compute similarity matrix
         sims_values = np.matmul(features, self.w)
         sims_values = np.diag(sims_values)
