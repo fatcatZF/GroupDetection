@@ -378,7 +378,7 @@ def compute_groupMitre(target, predict):
     predict_p = create_counterPart(predict)
     recall = compute_mitre(target_p, predict_p)
     precision = compute_mitre(predict_p, target_p)
-    if recall==0 and precision==0:
+    if recall==0 or precision==0:
         F1 = 0
     else:
         F1 = 2*recall*precision/(recall+precision)
