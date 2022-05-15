@@ -7,6 +7,7 @@ import tslearn.metrics
 import itertools
 from itertools import combinations
 
+import utils
 from utils import *
 
 #Gaussian Mixture Models
@@ -97,7 +98,7 @@ def compute_gmmDist_spring(sims):
     n_sims = sims.size(0)
     n_atoms = sims.size(1)
     n_timesteps = sims.size(2)
-    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    rel_rec, rel_send = utils.create_edgeNode_relation(n_atoms, self_loops=False)
     #shape: [n_edges, n_atoms]
     senders_locs = torch.matmul(rel_send, locs_re)
     receivers_locs = torch.matmul(rel_rec, locs_re)
@@ -204,7 +205,7 @@ def compute_dtw_dist_spring(sims):
     n_sims = sims.size(0)
     n_atoms = sims.size(1)
     n_timesteps = sims.size(2)
-    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    rel_rec, rel_send = utils.create_edgeNode_relation(n_atoms, self_loops=False)
     #shape: [n_edges, n_atoms]
     sims_re = sims.reshape(n_sims, n_atoms, -1)
     #shape: [n_sims, n_atoms, n_timesteps*n_in]
@@ -308,8 +309,8 @@ def build_ground_spring(sims):
     args:
         sims, shape: [n_sims, n_atoms, n_timesteps, n_in]
     """
-    train_data_xs = train_data[:,:,:,0]
-    train_data_ys = train_data[:,:,:,1]
+    train_data_xs = sims[:,:,:,0]
+    train_data_ys = sims[:,:,:,1]
     max_train_x = train_data_xs.max()
     min_train_x = train_data_xs.min()
     max_train_y = train_data_ys.max()
@@ -397,7 +398,7 @@ def compute_heatmap_sim_spring(sims, ground):
     n_sims = locs.size(0)
     n_atoms = locs.size(1)
     n_timesteps = locs.size(2)
-    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    rel_rec, rel_send = utils.create_edgeNode_relation(n_atoms, self_loops=False)
     #shape: [n_edges, n_atoms]
     locs_re = locs.reshape(n_sims, n_atoms, -1)
     #shape: [n_sims, n_atoms, n_timesteps*2]
