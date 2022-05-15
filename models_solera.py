@@ -613,15 +613,20 @@ class SoleraSVM:
             else:
                 features = None
             
-            wi_new, li_new, gmitre, hinge_loss = self.fit_1_example_bcfw(current_example, ground,
+            try:
+                wi_new, li_new, gmitre, hinge_loss = self.fit_1_example_bcfw(current_example, ground,
                                                   current_label, n_examples, wi, li, C, features)
-            self.wis_dict[current_index]=wi_new
-            self.lis_dict[current_index]=li_new
-            if verbose>0 and (i+1)%verbose_iters==0:
-                print("Iteraction: {:04d}".format(i+1),
-                      "current example index: {:04d}".format(current_index),
-                     "Group Mitre Loss: {:.10f}".format(gmitre),
-                     "hinge Loss: {:.10f}".format(hinge_loss))
+                self.wis_dict[current_index]=wi_new
+                self.lis_dict[current_index]=li_new
+                if verbose>0 and (i+1)%verbose_iters==0:
+                    print("Iteraction: {:04d}".format(i+1),
+                          "current example index: {:04d}".format(current_index),
+                         "Group Mitre Loss: {:.10f}".format(gmitre),
+                         "hinge Loss: {:.10f}".format(hinge_loss))
+            
+            except Exception as err:
+                print("Exception: ", err)
+                continue
         
         
     
