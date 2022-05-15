@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from scipy.stats import norm
 from statsmodels.tsa.stattools import grangercausalitytests
 import tslearn.metrics
@@ -84,6 +85,41 @@ def compute_gmmDist_example(example):
 
 
 
+def compute_gmmDist_spring(sims):
+    """
+    compute gmm distributions of spring simulation data
+    args:
+        sims, shape:[n_sims, n_atoms, n_timesteps, n_in]
+    """
+    locs = sims[:,:,:,:2] #to extract locations, shape:[n_sims, n_atoms, n_timesteps, 2]
+    locs_re = locs.reshape(locs.size(0), locs.size(1),-1)
+    #shape: [n_sims, n_atoms, n_timesteps*2]
+    n_sims = sims.size(0)
+    n_atoms = sims.size(1)
+    n_timesteps = sims.size(2)
+    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    #shape: [n_edges, n_atoms]
+    senders_locs = torch.matmul(rel_send, locs_re)
+    receivers_locs = torch.matmul(rel_rec, locs_re)
+    #shape: [n_sims, n_edges, n_timesteps*2]
+    senders_locs = senders_locs.reshape(senders_locs.size(0), senders_locs.size(1), n_timesteps, -1)
+    #shape: [n_sims, n_edges, n_timesteps, 2]
+    receivers_locs = receivers_locs.reshape(receivers_locs.size(0), receivers_locs.size(1), n_timesteps, -1)
+    distances = torch.sqrt(((senders_locs-receivers_locs)**2).sum(-1))
+    #shape: [n_sims, n_edges, n_timesteps]
+    distances_re = distances.reshape(-1)
+    #shape: [n_sims*n_edges*n_timesteps]
+    distances_re = distances_re.numpy()
+    probs = np.array([compute_gmm(dist) for dist in distances_re])
+    probs = probs.reshape(n_sims, (n_atoms-1)*n_atoms, n_timesteps)
+    probs = probs.mean(-1)
+    #shape: [n_sims, n_edges]
+    return probs
+    
+
+
+
+
 """
 Granger Causality
 """
@@ -160,6 +196,45 @@ def compute_dtw_dist(example):
 
 
 
+def compute_dtw_dist_spring(sims):
+    """
+    args:
+        sims, shape:[n_sims, n_atoms, n_timesteps, n_in]
+    """
+    n_sims = sims.size(0)
+    n_atoms = sims.size(1)
+    n_timesteps = sims.size(2)
+    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    #shape: [n_edges, n_atoms]
+    sims_re = sims.reshape(n_sims, n_atoms, -1)
+    #shape: [n_sims, n_atoms, n_timesteps*n_in]
+    senders = torch.matmul(rel_send, sims_re)
+    receivers = torch.matmul(rel_rec, sims_re)
+    #shape: [n_sims, n_edges, n_timesteps*n_in]
+    
+    senders = senders.reshape(n_sims, senders.size(1), n_timesteps, -1)
+    receivers = receivers.reshape(n_sims, receivers.size(1), n_timesteps, -1)
+    #shape:[n_sims, n_edges, n_timesteps, n_in]
+    
+    n_edges = n_atoms*(n_atoms-1)
+    senders = senders.reshape(n_sims*n_edges, n_timesteps, -1)
+    receivers = receivers.reshape(n_sims*n_edges, n_timesteps, -1)
+    
+    distances = []
+    for i in range(n_edges*n_sims):
+        distances.append(tslearn.metrics.dtw(senders[i], receivers[i]))
+    
+    distances = np.array(distances)
+    distances = distances.reshape(n_sims, n_edges)
+    
+    return distances
+
+
+
+
+
+
+
 #compute DTW similarity
 def compute_dtw_sim(example):
     """
@@ -170,6 +245,15 @@ def compute_dtw_sim(example):
     
     return np.exp(-distances)
 
+
+
+def compute_dtw_sim_spring(sims):
+    """
+    args:
+        sims, shape: [n_sims, n_atoms, n_timesteps, n_in]
+    """
+    distances = compute_dtw_dist_spring(sims)
+    return np.exp(-distances)
 
 
 
@@ -214,6 +298,37 @@ def build_ground(examples_train):
             ground[i,j,1] = Cs[j]
         
     return ground
+
+
+
+def build_ground_spring(sims):
+    """
+    build ground for heatmap for spring simulation
+    based on 
+    args:
+        sims, shape: [n_sims, n_atoms, n_timesteps, n_in]
+    """
+    train_data_xs = train_data[:,:,:,0]
+    train_data_ys = train_data[:,:,:,1]
+    max_train_x = train_data_xs.max()
+    min_train_x = train_data_xs.min()
+    max_train_y = train_data_ys.max()
+    min_train_y = train_data_ys.min()
+    
+    Rs = np.arange(int(min_train_x)-2.5, int(max_train_x)+2.5, 1)
+    Cs = np.arange(int(min_train_y)-2.5, int(max_train_y)+2.5, 1) 
+    
+    #build ground
+    ground = np.zeros((Rs.shape[0], Cs.shape[0], 2))   
+    for i in range(Rs.shape[0]):
+        for j in range(Cs.shape[0]):
+            ground[i,j,0] = Rs[i]
+            ground[i,j,1] = Cs[j]
+            
+    return ground
+
+
+
     
 
 def compute_heatmap_traj(traj, ground):
@@ -271,6 +386,51 @@ def compute_heatmap_sim(example, ground):
 
 
 
+def compute_heatmap_sim_spring(sims, ground):
+    """
+    compute heatmap similarities for spring 
+    args:
+        sims: [n_sims, n_atoms, n_timesteps, n_in]
+    """
+    locs = sims[:,:,:,:2]
+    #shape: [n_sims, n_atoms, n_timesteps, 2]
+    n_sims = locs.size(0)
+    n_atoms = locs.size(1)
+    n_timesteps = locs.size(2)
+    rel_rec, rel_send = create_edgeNode_relation(n_atoms, self_loops=False)
+    #shape: [n_edges, n_atoms]
+    locs_re = locs.reshape(n_sims, n_atoms, -1)
+    #shape: [n_sims, n_atoms, n_timesteps*2]
+    senders = torch.matmul(rel_send, locs_re)
+    receivers = torch.matmul(rel_rec, locs_re)
+    #shape: [n_sims, n_edges, n_timesteps*2]
+    senders = senders.reshape(n_sims, n_atoms*(n_atoms-1), n_timesteps, -1)
+    receivers = receivers.reshape(n_sims, n_atoms*(n_atoms-1), n_timesteps, -1)
+    #shape: [n_sims, n_edges, n_timesteps, 2]
+    
+    
+    n_edges = n_atoms*(n_atoms-1)
+    senders = senders.reshape(n_sims*n_edges, n_timesteps, -1)
+    receivers = receivers.reshape(n_sims*n_edges, n_timesteps, -1)
+    senders = senders.numpy()
+    receivers = receivers.numpy()
+    
+    simls = []
+    for i in range(n_sims*n_edges):
+        traj_s = senders[i]
+        traj_r = receivers[i]
+        heatmap_s = compute_heatmap_traj(traj_s, ground)
+        heatmap_r = compute_heatmap_traj(traj_r, ground)
+        sim_sr = (heatmap_r*heatmap_s).sum()/(np.sqrt(ground.shape[0]*ground.shape[1]))
+        simls.append(sim_sr)
+    simls = np.array(simls)
+    simls = simls.reshape(n_sims, n_edges)
+    return simls
+
+
+
+
+
 
 """
 compute pairwise similarity for examples
@@ -307,6 +467,43 @@ def compute_sims(example, ground):
     combined_features = np.concatenate([sim, dissim], axis=-1)
     
     return sim, dissim, combined_features
+
+
+
+
+
+def compute_sims_spring(sims, ground):
+    """
+    compute pairwise similarity and dissimilarity for one example
+    args:
+        sims: [n_sims, n_atoms, n_timesteps, n_in]
+    """
+    #compute GMM distances similarities
+    gmm_sim = compute_gmmDist_spring(sims)
+    gmm_dissim = (1-gmm_sim).reshape(gmm_sim.shape[0], gmm_sim.shape[1], 1)
+    #shape: [n_sims, n_edges, 1]
+    gmm_sim = gmm_sim.reshape(gmm_sim.shape[0], gmm_sim.shape[1], 1)
+    
+    #compute DTW sim
+    dtw_sim = compute_dtw_dist_spring(sims)
+    dtw_dissim = (1-dtw_sim).reshape(dtw_sim.shape[0], dtw_sim.shape[1], 1)
+    dtw_sim = dtw_sim.reshape(dtw_sim.shape[0], dtw_sim.shape[1], 1)
+    
+    #compute heatmap sim
+    heatmap_sim = compute_heatmap_sim_spring(sims, ground)
+    heatmap_dissim = (1-heatmap_sim).reshape(heatmap_sim.shape[0],
+                                            heatmap_sim.shape[1], 1)
+    heatmap_sim = heatmap_sim.reshape(heatmap_sim.shape[0],
+                                     heatmap_sim.shape[1], 1)
+    sim = np.concatenate([gmm_sim, dtw_sim, heatmap_sim], axis=-1)
+    dissim = np.concatenate([gmm_dissim, dtw_dissim, heatmap_dissim], axis=-1)
+    combined_features = np.concatenate([sim, dissim], axis=-1)
+    
+    return sim, dissim, combined_features
+
+
+
+
 
 
 
